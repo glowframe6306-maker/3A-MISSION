@@ -4062,29 +4062,27 @@ const g0=window.go;window.go=function(id){const cur=(document.querySelector('.pa
  if(id==='settings')view('main');return r};
 if(typeof pageNames!=='undefined')pageNames.settings='Settings';
 const sh0=window.showIphoneHomeScreen;window.showIphoneHomeScreen=function(){OK.clear();return sh0.apply(this,arguments)};
-/* ---------- Face ID enrolment (head-circle scan to 100%) ---------- */
+/* ---------- Face ID enrollment (quick scan to 100%) ---------- */
 function enroll(){
- const STEPS=[{k:'c',t:'Look straight at iPhone',a:'●',n:4},{k:'u',t:'Slowly look UP',a:'↑',n:3},{k:'d',t:'Slowly look DOWN',a:'↓',n:3},{k:'r',t:'Slowly turn your head RIGHT',a:'→',n:3},{k:'l',t:'Slowly turn your head LEFT',a:'←',n:3}];
+ const STEPS=[{t:'Hold still and look at iPhone',n:6}];
  const TOTAL=STEPS.reduce((x,y)=>x+y.n,0),N=60;let ln='';for(let i=0;i<N;i++){const a=i/N*2*Math.PI-Math.PI/2,c=Math.cos(a),s=Math.sin(a);ln+=`<line data-i="${i}" x1="${125+c*108}" y1="${125+s*108}" x2="${125+c*121}" y2="${125+s*121}"/>`}
  const o=E(`<div class="sxE"><h2>Face ID</h2><div class="sxDir" data-d="c">●</div><div class="sxCam"><video></video><svg viewBox="0 0 250 250">${ln}</svg></div><div class="pc">0%</div><p class="hi">Loading Face ID… (internet needed once)</p><div class="sxDots">${STEPS.map(()=>'<i></i>').join('')}</div><button class="cn">Cancel</button></div>`);document.body.appendChild(o);
  const v=$('video',o),hi=$('.hi',o),pc=$('.pc',o),dirEl=$('.sxDir',o),dots=$$('.sxDots i',o);let st,dead=0,got=0;const S=[],SZ=[];
  const close=()=>{dead=1;stop(st);o.remove();view(cur)};$('.cn',o).onclick=close;
  const prog=()=>{const lit=Math.round(got/TOTAL*N);$$('line',o).forEach((l,i)=>l.classList.toggle('on',i<lit));pc.textContent=Math.round(got/TOTAL*100)+'%'};
- const pose=r=>{const p=r.landmarks.positions,n=p[30],jw=Math.hypot(p[16].x-p[0].x,p[16].y-p[0].y)||1,ey=(p[36].y+p[45].y)/2;return{yaw:-(n.x-(p[0].x+p[16].x)/2)/jw,pitch:(n.y-ey)/((p[8].y-ey)||1),ratio:r.detection.box.width/(v.videoWidth||1)}};
- const avg=a=>a.reduce((x,y)=>x+y,0)/(a.length||1);
+ const faceSize=r=>r.detection.box.width/(v.videoWidth||1);
  (async()=>{try{await lib();st=await cam(v)}catch(e){hi.textContent='Could not start. Allow camera access and check your internet connection.';return}
-  let base={yaw:0,pitch:.6};const by=[],bp=[];
-  for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si],t0=Date.now();let n=0,last=0;dirEl.dataset.d=s.k;dirEl.textContent=s.a;hi.textContent=s.t;
+  for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si];let n=0,last=0;dirEl.textContent='●';hi.textContent=s.t;
    while(!dead&&n<s.n){const r=await det(v).catch(()=>null);
     if(!r){hi.textContent='I can’t see your face. Look at the camera.';await wait(60);continue}
-    const m=pose(r);
-    if(si===0){if(m.ratio<.24){hi.textContent='Move closer';continue}if(m.ratio>.72){hi.textContent='Move a little farther away';continue}if(Math.abs(m.yaw)>.18){hi.textContent='Look straight at iPhone';continue}hi.textContent=s.t}
-    else{const dy=m.yaw-base.yaw,dp=m.pitch-base.pitch,right=s.k==='r'?dy>.09:s.k==='l'?dy<-.09:s.k==='u'?dp<-.06:dp>.06;
-     if(!right&&Date.now()-t0<7000){hi.textContent=s.t;await wait(30);continue}}
+    const ratio=faceSize(r);
+    if(ratio<.24){hi.textContent='Move closer';await wait(60);continue}
+    if(ratio>.72){hi.textContent='Move a little farther away';await wait(60);continue}
+    hi.textContent=s.t;
     if(Date.now()-last<130)continue;
     S.push(Array.from(r.descriptor).map(x=>+x.toFixed(4)));last=Date.now();n++;got++;prog();
-    if(si===0){by.push(m.yaw);bp.push(m.pitch);SZ.push(m.ratio)}}
-   if(dead)return;if(si===0)base={yaw:avg(by),pitch:avg(bp)};dots[si].classList.add('on');await wait(220)}
+    SZ.push(ratio)}
+   if(dead)return;dots[si].classList.add('on');await wait(100)}
   if(dead)return;
   SZ.sort((a,b)=>a-b);F.d=S;F.sz=SZ.length?SZ[Math.floor(SZ.length/2)]:null;F.use=F.use&&Object.keys(F.use).length?F.use:{unlock:1,notes:1,hidden:1,apps:1};SV('m3a_face',F);fails=0;stop(st);
   $$('line',o).forEach(l=>l.classList.add('on'));pc.textContent='100%';dirEl.removeAttribute('data-d');dirEl.innerHTML=TK;$('h2',o).textContent='Face ID is set up ✓';hi.textContent='Saved. Face ID now unlocks iPhone, Notes, Hidden Apps and locked apps.';
