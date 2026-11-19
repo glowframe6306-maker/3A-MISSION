@@ -4078,7 +4078,7 @@ function enroll(){
    while(!dead&&n<s.n){const r=await det(v).catch(()=>null);
     if(!r){hi.textContent='I can’t see your face. Look at the camera.';await wait(60);continue}
     const m=pose(r);
-    if(si===0){if(m.ratio<.24){hi.textContent='Move closer';continue}if(m.ratio>.72){hi.textContent='Move a little farther away';continue}if(Math.abs(m.yaw)>.08){hi.textContent='Look straight at iPhone';continue}hi.textContent=s.t}
+    if(si===0){if(m.ratio<.24){hi.textContent='Move closer';continue}if(m.ratio>.72){hi.textContent='Move a little farther away';continue}if(Math.abs(m.yaw)>.18){hi.textContent='Look straight at iPhone';continue}hi.textContent=s.t}
     else{const dy=m.yaw-base.yaw,dp=m.pitch-base.pitch,right=s.k==='r'?dy>.09:s.k==='l'?dy<-.09:s.k==='u'?dp<-.06:dp>.06;
      if(!right&&Date.now()-t0<7000){hi.textContent=s.t;await wait(30);continue}}
     if(Date.now()-last<130)continue;
