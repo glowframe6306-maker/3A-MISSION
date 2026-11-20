@@ -4034,7 +4034,7 @@ const LS=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?
 const E=h=>{const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild};
 const BASE='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/';
 let F=LS('m3a_face',{d:[],use:{unlock:1,notes:1,hidden:1,apps:1}}),AL=LS('m3a_al',{on:1,apps:{}}),PV=LS('m3a_pv',{loc:1,bt:1,cam:1,mic:1,not:1}),fails=0;const OK=new Set();
-const enrolled=()=>F.d.length>=6,usable=k=>enrolled()&&(k==='secure'||!!F.use[k])&&fails<3;
+const enrolled=()=>F.v===3&&Array.isArray(F.d)&&Array.isArray(F.poseCounts)&&F.poseCounts.length===5&&F.poseCounts.every(n=>Number.isInteger(n)&&n>=5)&&F.poseCounts.reduce((a,b)=>a+b,0)===F.d.length,usable=k=>enrolled()&&(k==='secure'||!!F.use[k])&&fails<3;
 const TK='<svg class="sxTick" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><path d="M20 33l8 8 16-17"/></svg>';
 const GL='<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22v-8a6 6 0 0 1 6-6h8M42 8h8a6 6 0 0 1 6 6v8M56 42v8a6 6 0 0 1-6 6h-8M22 56h-8a6 6 0 0 1-6-6v-8"/><path d="M24 26v4M40 26v4M32 28v8h-3M24 44q8 6 16 0"/></svg>';
 /* ---------- face engine (face-api.js, runs fully in the browser) ---------- */
@@ -4049,7 +4049,8 @@ const eyesOpen=sample=>{const p=sample&&sample.landmarks&&sample.landmarks.posit
 const captureFrame=v=>{const c=document.createElement('canvas'),scale=Math.min(1,640/(v.videoWidth||640));c.width=Math.max(1,Math.round((v.videoWidth||640)*scale));c.height=Math.max(1,Math.round((v.videoHeight||480)*scale));c.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,c.width,c.height);return c};
 const zoomFrame=(frame,box)=>{const side=Math.min(frame.width,frame.height,Math.max(box.width,box.height)*2.6),x=Math.max(0,Math.min(frame.width-side,box.x+box.width/2-side/2)),y=Math.max(0,Math.min(frame.height-side,box.y+box.height/2-side/2)),c=document.createElement('canvas');c.width=c.height=320;c.getContext('2d',{willReadFrequently:true}).drawImage(frame,x,y,side,side,0,0,320,320);return c};
 const zoomedSample=async(frame,found,onZoom)=>{if(!found)return null;if(onZoom)onZoom();return det(zoomFrame(frame,found.box))};
-const faceMatches=descriptor=>{const ds=F.d.map(x=>faceapi.euclideanDistance(x,descriptor)).sort((a,b)=>a-b);return ds.length>=3&&(ds[0]+ds[1]+ds[2])/3<.6};
+const FACE_MATCH_LIMIT=.48;
+const faceMatches=descriptor=>{let offset=0;for(const count of F.poseCounts||[]){const matches=F.d.slice(offset,offset+count).reduce((n,x)=>n+(faceapi.euclideanDistance(x,descriptor)<FACE_MATCH_LIMIT?1:0),0);if(matches>=3)return true;offset+=count}return false};
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 /* warm-up: load models + compile the GPU shaders in the background so the real scan is quick */
 let warmP;const warm=()=>warmP||(warmP=(async()=>{try{await lib();const c=document.createElement('canvas');c.width=c.height=320;const g=c.getContext('2d');g.fillStyle='#808080';g.fillRect(0,0,320,320);await faceapi.detectSingleFace(c,detOpts(224));await faceapi.computeFaceDescriptor(c);await faceapi.detectFaceLandmarksTiny(c)}catch(e){console.warn('Face ID warm-up failed; first scan may be slower.',e);warmP=null}})());
@@ -4147,27 +4148,31 @@ if(typeof pageNames!=='undefined')pageNames.settings='Settings';
 const sh0=window.showIphoneHomeScreen;window.showIphoneHomeScreen=function(){OK.clear();return sh0.apply(this,arguments)};
 /* ---------- Face ID enrollment (quick scan to 100%) ---------- */
 function enroll(){
- const STEPS=[{n:6}];
+ const STEPS=[{n:5,label:'Look straight ahead',pose:'front'},{n:5,label:'Turn slightly to your left',pose:'left'},{n:5,label:'Turn slightly to your right',pose:'right'},{n:5,label:'Tilt your head slightly up',pose:'up'},{n:5,label:'Tilt your head slightly down',pose:'down'}];
  const TOTAL=STEPS.reduce((x,y)=>x+y.n,0),N=60;let ln='';for(let i=0;i<N;i++){const a=i/N*2*Math.PI-Math.PI/2,c=Math.cos(a),s=Math.sin(a);ln+=`<line data-i="${i}" x1="${125+c*108}" y1="${125+s*108}" x2="${125+c*121}" y2="${125+s*121}"/>`}
  const o=E(`<div class="sxE"><h2>Face ID</h2><div class="sxDir" data-d="c">●</div><div class="sxCam"><video></video><svg viewBox="0 0 250 250">${ln}</svg></div><div class="pc">0%</div><p class="hi"></p><div class="sxDots">${STEPS.map(()=>'<i></i>').join('')}</div><button class="cn">Cancel</button></div>`);document.body.appendChild(o);
- const v=$('video',o),hi=$('.hi',o),pc=$('.pc',o),dirEl=$('.sxDir',o),dots=$$('.sxDots i',o);let st,dead=0,got=0;const S=[];
+ const v=$('video',o),hi=$('.hi',o),pc=$('.pc',o),dirEl=$('.sxDir',o),dots=$$('.sxDots i',o);let st,dead=0,got=0,baseline=null;const S=[],poseCounts=[];
  const close=()=>{dead=1;stop(st);o.remove();view(cur)};$('.cn',o).onclick=close;
  const prog=()=>{const lit=Math.round(got/TOTAL*N);$$('line',o).forEach((l,i)=>l.classList.toggle('on',i<lit));pc.textContent=Math.round(got/TOTAL*100)+'%'};
+ const poseOf=sample=>{const p=sample.landmarks.positions,eyeMidX=(p[36].x+p[45].x)/2,eyeMidY=(p[36].y+p[45].y)/2,eyeWidth=Math.hypot(p[45].x-p[36].x,p[45].y-p[36].y);return eyeWidth?{yaw:(p[30].x-eyeMidX)/eyeWidth,pitch:(p[30].y-eyeMidY)/eyeWidth}:null};
+ const poseReady=(pose,stage)=>{if(!pose)return false;if(stage==='front')return Math.abs(pose.yaw)<.16;if(!baseline)return false;const yaw=pose.yaw-baseline.yaw,pitch=pose.pitch-baseline.pitch;return stage==='left'?yaw>.10:stage==='right'?yaw<-.10:stage==='up'?pitch<-.035:pitch>.035};
  (async()=>{try{const cameraReady=cam(v).then(stream=>(st=stream));await Promise.all([cameraReady,warm()]);if(dead){stop(st);return}}catch(e){console.error('Face ID setup failed',e);hi.textContent='Face ID could not start. Check camera access and your internet connection.';return}
-  for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si];let n=0,last=0;dirEl.textContent='●';
+  for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si];let n=0,last=0,yawSum=0,pitchSum=0;poseCounts.push(0);dirEl.textContent='●';hi.textContent=s.label;
    while(!dead&&n<s.n){if(v.readyState<2||!v.videoWidth){await wait(100);continue}
     const frame=captureFrame(v);let found,r;
     try{found=await findFace(frame);if(found)r=await zoomedSample(frame,found)}catch(e){console.error('Face sample failed',e);hi.textContent='Face scan error. Please try again.';await wait(300);continue}
     if(!r){hi.textContent='';await wait(100);continue}
     if(!eyesOpen(r)){hi.textContent='Keep both eyes open.';await wait(100);continue}
+    const pose=poseOf(r);if(!poseReady(pose,s.pose)){hi.textContent=s.label+' · adjust your head position';await wait(80);continue}
     if(Date.now()-last<130)continue;
     try{S.push(Array.from(r.descriptor).map(x=>+x.toFixed(4)))}catch(e){console.error('Face ID sample failed',e);stop(st);hi.textContent='Could not record this face. Reload and try again.';return}
-    last=Date.now();n++;got++;prog();hi.textContent=`Recording face… ${n}/${s.n}`;
+    last=Date.now();n++;poseCounts[si]++;got++;yawSum+=pose.yaw;pitchSum+=pose.pitch;prog();hi.textContent=`${s.label} · recording ${n}/${s.n}`;
     }
+   if(s.pose==='front')baseline={yaw:yawSum/n,pitch:pitchSum/n};
    if(dead)return;dots[si].classList.add('on');await wait(100)}
   if(dead)return;
-  F.d=S;F.v=2;delete F.sz;F.use=F.use&&Object.keys(F.use).length?F.use:{unlock:1,notes:1,hidden:1,apps:1};SV('m3a_face',F);fails=0;stop(st);
-  $$('line',o).forEach(l=>l.classList.add('on'));pc.textContent='100%';dirEl.removeAttribute('data-d');dirEl.innerHTML=TK;$('h2',o).textContent='Face ID is set up ✓';hi.textContent='Saved. Face ID now unlocks iPhone, Notes, Hidden Apps and locked apps.';
+  F.d=S;F.poseCounts=poseCounts;F.v=3;delete F.sz;F.use=F.use&&Object.keys(F.use).length?F.use:{unlock:1,notes:1,hidden:1,apps:1};SV('m3a_face',F);fails=0;stop(st);
+  $$('line',o).forEach(l=>l.classList.add('on'));pc.textContent='100%';dirEl.removeAttribute('data-d');dirEl.innerHTML=TK;$('h2',o).textContent='Face ID is set up ✓';hi.textContent='All five positions saved. Face ID now checks your enrolled face.';
   const bt=$('.cn',o);bt.className='big';bt.textContent='Done';bt.onclick=close;warm()})()}
 /* ---------- Settings app ---------- */
 const LOC=LS('m3a_loc',{}),BT=LS('m3a_bt',{}),locOf=id=>LOC[id]||(id==='camera'?'While Using':'Never'),icn=id=>`<span class="sxI">${nm[id].s?nm[id].s.outerHTML:''}</span>`;
@@ -4179,8 +4184,8 @@ function view(v){cur=v;const r=root();if(!r)return;let h='';const back=v==='main
  if(v==='main'){h+=`<div class="sxT1">Settings</div><div class="sxG">${row('🙂','#34c759','Face ID & Passcode',enrolled()?'Face ID is set up':'Not set up','fid')}${row('🔒','#5856d6','App Lock',AL.on?Object.values(AL.apps).filter(Boolean).length+' apps locked':'Off','al')}${row('✋','#0a84ff','Privacy & Security','','pv')}${row('♿','#0a84ff','Accessibility','','acc')}${row('🎙','linear-gradient(135deg,#8e5cff,#26c6ff 55%,#ff5fd2)','Siri & Search',window.__siri?window.__siri.status():'','siri')}</div>`}
  if(v==='fid'){const u=F.use;h+=`<div class="sxT1">Face ID & Passcode</div>`;
   if(window.__passOff&&window.__passOff())h+=`<button class="sxB" id="sxPcOn">Turn Passcode On</button><div class="sxF">Passcode is off. Face ID is removed and nothing asks for a passcode until you turn it on.</div>`;
-  else if(!enrolled())h+=`<button class="sxB" id="sxSet">Set Up Face ID</button><div class="sxF">Keep your face visible to the camera while Face ID scans. It works at different distances as long as your face can be seen clearly. Only your face unlocks the iPhone, Notes, Hidden Apps and locked apps. If Face ID fails, your passcode is asked.</div>`;
-  else h+=`<div class="sxF" style="margin-top:0">USE FACE ID FOR:</div><div class="sxG">${[['unlock','Unlock iPhone'],['notes','Notes'],['hidden','Hidden Apps'],['apps','Locked Apps (App Lock)']].map(([k,t])=>`<div class="sxR"><em>${t}</em>${tg('u_'+k,u[k])}</div>`).join('')}</div><div class="sxF">${F.v===2?'After 3 failed Face ID attempts it is disabled until you enter your passcode.':'To enable zoom-assisted scanning at different distances, tap Reset Face ID and enroll once more.'}</div><button class="sxB" id="sxSet">Reset Face ID…</button><button class="sxB red" id="sxDel">Remove Face ID</button>`;
+  else if(!enrolled())h+=`<button class="sxB" id="sxSet">${Array.isArray(F.d)&&F.d.length?'Set Up Face ID Again':'Set Up Face ID'}</button><div class="sxF">Set up by looking straight ahead, turning slightly left and right, then tilting your head up and down. Keep both eyes open and follow each prompt until all five positions reach 100%. Older Face ID recordings must be set up again. Face ID scanning speed is unchanged.</div>`;
+  else h+=`<div class="sxF" style="margin-top:0">USE FACE ID FOR:</div><div class="sxG">${[['unlock','Unlock iPhone'],['notes','Notes'],['hidden','Hidden Apps'],['apps','Locked Apps (App Lock)']].map(([k,t])=>`<div class="sxR"><em>${t}</em>${tg('u_'+k,u[k])}</div>`).join('')}</div><div class="sxF">Your saved profile includes five head positions. After 3 failed Face ID attempts it is disabled until you enter your passcode. To update the profile, reset Face ID and complete all five positions again.</div><button class="sxB" id="sxSet">Reset Face ID…</button><button class="sxB red" id="sxDel">Remove Face ID</button>`;
   if(!(window.__passOff&&window.__passOff()))h+=`<div class="sxF">PASSCODE</div><button class="sxB" id="sxPcChg">Change Passcode</button><button class="sxB red" id="sxPcOff">Turn Passcode Off</button>`}
  if(v==='al'){h+=`<div class="sxT1">App Lock</div><div class="sxG"><div class="sxR"><em>App Lock</em>${tg('al_on',AL.on)}</div></div><div class="sxF">Locked apps need Face ID or your passcode to open. A wrong passcode never opens the app.</div><div class="sxG">${Object.keys(nm).map(id=>`<div class="sxR"><span class="sxI">${nm[id].s?nm[id].s.outerHTML:''}</span><em>${nm[id].n}</em>${tg('a_'+id,AL.apps[id])}</div>`).join('')}</div>`}
  if(v==='pv'){const ids=Object.keys(nm),wl=ids.filter(i=>locOf(i)==='While Using').length,T=(k,ic,bg,t)=>`<div class="sxR"><span class="sxI" style="background:${bg}">${ic}</span><em>${t}</em>${tg('p_'+k,PV[k])}</div>`;
