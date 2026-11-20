@@ -21,7 +21,7 @@
  if(innerWidth<=Math.ceil(innerHeight*A)+24||/[?&]nophone/.test(location.search))return;
  H.classList.add('pf-shell');
  const w=Math.round(innerHeight*A);
- document.write('<style>html.pf-shell,html.pf-shell body{margin:0;height:100%;background:#000;overflow:hidden}html.pf-shell body>*:not(#pfShell){display:none!important}#pfShell{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000}#pfShell iframe{border:0;height:100%;width:'+w+'px;max-width:100vw;border-radius:28px;background:#000;box-shadow:0 0 70px #000b}</style><div id="pfShell"><iframe id="pfFrame" allow="fullscreen; camera; microphone" allowfullscreen src="'+location.href.split('#')[0]+'#pf"></iframe></div>');
+ document.write('<style>html.pf-shell,html.pf-shell body{margin:0;height:100%;background:#000;overflow:hidden}html.pf-shell body>*:not(#pfShell){display:none!important}#pfShell{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000}#pfShell iframe{border:0;height:100%;width:'+w+'px;max-width:100vw;border-radius:28px;background:#000;box-shadow:0 0 70px #000b}</style><div id="pfShell"><iframe id="pfFrame" allow="fullscreen \'self\'; camera \'self\'; microphone \'self\'" allowfullscreen src="'+location.href.split('#')[0]+'#pf"></iframe></div>');
  addEventListener('resize',()=>{const f=document.getElementById('pfFrame');if(f)f.style.width=Math.round(innerHeight*A)+'px';});
 }catch(e){}})();
 </script>
@@ -5718,7 +5718,7 @@ const siriHTML=()=>`<div class="sxT1">Siri & Search</div><div class="sxCard"><di
  <div class="sxF">Wake words are checked against your saved voice using a local open-source speaker model. No Picovoice account or AccessKey is needed. The first setup downloads about 7 MB of model data; your voice recording and profile stay in this browser on this device.</div>
  <div class="sxF">Speaker model: <a href="https://huggingface.co/onnx-community/wespeaker-voxceleb-resnet34-LM" target="_blank" rel="noopener">WeSpeaker VoxCeleb ResNet34-LM</a> (CC BY 4.0). Voice matching runs locally; browser speech-to-text may use its own speech service.</div>
  <div class="sxG"><button class="sxB" data-sr="voice-enroll">Set Up My Voice</button><button class="sxB red" data-sr="voice-remove" ${voiceProfile?'':'disabled'}>Remove Voice Profile</button></div><div class="sxF" id="sriVoiceStatus">${voiceProfile?'Saved voice profile is on this device.':'Set up your voice before enabling wake-word listening.'}</div>
- <div class="sxF">Microphone · ${micStatus()}</div>
+ <div class="sxF">Microphone · ${micStatus()}</div>${denied?'<button class="sxB" data-sr="mic">Allow Microphone / Retry</button>':''}
  <div class="sxG">${rw('Search on Home Screen','pill')}</div>
  <div class="sxG">${cy('Language','lang',S.lang==='si'?'සිංහල':'English')}${cy('Siri Voice','vname',S.vname||'Default')}${cy('Speaking Rate','rate',S.rate+'×')}${cy('Orb Style','theme',TH[S.theme][0])}</div>
  <div class="sxF">SMART ANSWERS (OPTIONAL)</div><div class="sxG"><div class="sxR"><input id="sriKey" type="password" placeholder="Anthropic API key" value="${S.key.replace(/"/g,'')}" autocomplete="off"></div></div>
