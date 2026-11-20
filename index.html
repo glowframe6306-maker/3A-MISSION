@@ -2388,7 +2388,7 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  function runFace(){
   const run=++faceRun,live=()=>run===faceRun&&panelOpen&&!unlocked;
   clearFaceTimers();
-  faceStatus.textContent='';
+  faceStatus.textContent='Keep both eyes open';
   screen.classList.remove('faceid-fail','faceid-done','lock-opened');screen.classList.add('faceid-active');keypadEl.classList.remove('ready');
   const rb=document.getElementById('sxRL');if(rb)rb.hidden=true;
   FIDL.scan();
@@ -4044,6 +4044,8 @@ const stop=st=>st&&st.getTracks().forEach(t=>t.stop());
 const detOpts=(inputSize=224)=>new faceapi.TinyFaceDetectorOptions({inputSize,scoreThreshold:.05});
 const findFace=async v=>{let found=await faceapi.detectSingleFace(v,detOpts(160));if(!found)found=await faceapi.detectSingleFace(v,detOpts(320));return found};
 const det=v=>faceapi.detectSingleFace(v,detOpts()).withFaceLandmarks(true).withFaceDescriptor();
+const eyeRatio=eye=>{const d=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),width=d(eye[0],eye[3]);return width>0?(d(eye[1],eye[5])+d(eye[2],eye[4]))/(2*width):0};
+const eyesOpen=sample=>{const p=sample&&sample.landmarks&&sample.landmarks.positions;if(!p||p.length<48)return false;return eyeRatio(p.slice(36,42))>=.18&&eyeRatio(p.slice(42,48))>=.18};
 const captureFrame=v=>{const c=document.createElement('canvas'),scale=Math.min(1,640/(v.videoWidth||640));c.width=Math.max(1,Math.round((v.videoWidth||640)*scale));c.height=Math.max(1,Math.round((v.videoHeight||480)*scale));c.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,c.width,c.height);return c};
 const zoomFrame=(frame,box)=>{const side=Math.min(frame.width,frame.height,Math.max(box.width,box.height)*2.6),x=Math.max(0,Math.min(frame.width-side,box.x+box.width/2-side/2)),y=Math.max(0,Math.min(frame.height-side,box.y+box.height/2-side/2)),c=document.createElement('canvas');c.width=c.height=320;c.getContext('2d',{willReadFrequently:true}).drawImage(frame,x,y,side,side,0,0,320,320);return c};
 const zoomedSample=async(frame,found,onZoom)=>{if(!found)return null;if(onZoom)onZoom();return det(zoomFrame(frame,found.box))};
@@ -4083,6 +4085,7 @@ try{
   }
   if(r===timeout||r===cancelled)break;
   if(!r){hit=0;mismatchHits=0;const left=deadline-Date.now();if(left>0)await wait(Math.min(25,left));continue}
+  if(!eyesOpen(r)){hit=0;mismatchHits=0;const left=deadline-Date.now();if(left>0)await wait(Math.min(25,left));continue}
   if(faceMatches(r.descriptor)){mismatchHits=0;if(++hit>=2){ok=1;break}}
   else{hit=0;if(++mismatchHits>=3){mismatch=true;if(onMismatch)onMismatch();break}}
  }
@@ -4096,17 +4099,17 @@ function ask(name,use,done,no){
  const pad=()=>{api.showPad();api.retry(usable(use)?face:null)};
  const face=async()=>{
   if(!usable(use)){if(fails>=3)api.sub('Face ID is off. Enter your passcode.');pad();return}
-  api.showFace(name,'');const r=await scan();if(dead||api.dead)return;
+  api.showFace(name,'Keep both eyes open');const r=await scan();if(dead||api.dead)return;
   if(r){api.faceOk();setTimeout(()=>{if(!dead&&!api.dead){dead=1;api.close();done&&done()}},FaceIDAnim.OK_MS+60)}
   else{api.faceFail(fails>=3?'Face ID is off. Enter your passcode.':'Face ID not recognised. Try again or use passcode.');setTimeout(()=>{if(!dead&&!api.dead)pad()},FaceIDAnim.FAIL_MS+40)}};
  face()}
 function requireFaceMatch(done,no){
  if(!enrolled()){no&&no();return}
  let dead=false,running=false;
- const api=window.__pc.open({len:6,title:'Face ID Required',subtitle:'Verify your face to continue',faceName:'Face ID',check:()=>false,onCancel:()=>{dead=true;no&&no()}});
+ const api=window.__pc.open({len:6,title:'Face ID Required',subtitle:'Keep both eyes open to verify your face',faceName:'Face ID',check:()=>false,onCancel:()=>{dead=true;no&&no()}});
  const attempt=async()=>{
   if(dead||api.dead||running)return;
-  running=true;api.showFace('Face ID','');
+  running=true;api.showFace('Face ID','Keep both eyes open');
   const matched=await scan();
   running=false;
   if(dead||api.dead)return;
@@ -4156,6 +4159,7 @@ function enroll(){
     const frame=captureFrame(v);let found,r;
     try{found=await findFace(frame);if(found)r=await zoomedSample(frame,found)}catch(e){console.error('Face sample failed',e);hi.textContent='Face scan error. Please try again.';await wait(300);continue}
     if(!r){hi.textContent='';await wait(100);continue}
+    if(!eyesOpen(r)){hi.textContent='Keep both eyes open.';await wait(100);continue}
     if(Date.now()-last<130)continue;
     try{S.push(Array.from(r.descriptor).map(x=>+x.toFixed(4)))}catch(e){console.error('Face ID sample failed',e);stop(st);hi.textContent='Could not record this face. Reload and try again.';return}
     last=Date.now();n++;got++;prog();hi.textContent=`Recording face… ${n}/${s.n}`;
@@ -4274,7 +4278,7 @@ view('main');
   q('.pcCancel').onclick=()=>{if(dead)return;close();o.onCancel&&o.onCancel();};
   const api={
    get dead(){return dead;},
-   showFace(name,status){setMode('face');fh.textContent=name||'Face ID';fp.textContent='';ctl.scan();rt.hidden=true;},
+   showFace(name,status){setMode('face');fh.textContent=name||'Face ID';fp.textContent=status||'';ctl.scan();rt.hidden=true;},
    showPad(){setMode('pad');},
    sub(t){sub.textContent=t;},
    st(t){fp.textContent=t;},
@@ -5289,21 +5293,90 @@ function armSilence(){clearTimeout(tmr);tmr=setTimeout(()=>{if(mode==='cmd'&&!bu
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,denied=0,gesture=0,deniedAt=0,rb=200,micErr='',micAsked=0,lastStart=0;
 const WAKE=/(?:\b(?:hey|hi|hello|hai|hay|ok|okay|yo)[\s,]+)?(?:\b(?:s[iye]r{1,2}[iye]{1,2}|sirius|[cz][iy]r[iy]e?)(?:'s)?\b|සිරි)/i;
 const micOk=()=>{try{return(JSON.parse(localStorage.getItem('m3a_pv'))||{}).mic!==0}catch(_){return true}};
+const VOICE_KEY='m3a_siri_eagle_key',VOICE_PROFILE='m3a_siri_eagle_profile',EAGLE_MODEL={publicPath:'https://raw.githubusercontent.com/Picovoice/eagle/291d6c702a758ebc16a4ee744e13196fb8fe7bae/lib/common/eagle_params.pv',customWritePath:'3a-mission-eagle',version:1};
+let voiceProfile=null,voiceEagle=null,voiceScriptP=null,voiceStarting=null,voiceStream=null,voiceContext=null,voiceProcessor=null,voiceMuted=null,voiceSource=null,voiceRing=[],voicePending=[],voiceChecking=false,enrollmentActive=false;
+try{const p=JSON.parse(localStorage.getItem(VOICE_PROFILE)||'null');if(p&&typeof p.data==='string')voiceProfile={bytes:Uint8Array.from(atob(p.data),c=>c.charCodeAt(0))}}catch(e){console.error('Saved Siri voice profile could not be loaded.',e)}
+const voiceKey=()=>{try{return localStorage.getItem(VOICE_KEY)||''}catch(_){return''}};
+const voiceStatus=message=>{const el=$('#sriVoiceStatus');if(el)el.textContent=message};
+function loadEagle(){
+ if(window.EagleWeb)return Promise.resolve(window.EagleWeb);
+ if(voiceScriptP)return voiceScriptP;
+ voiceScriptP=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@picovoice/eagle-web@3.0.1/dist/iife/index.js';s.onload=()=>window.EagleWeb?resolve(window.EagleWeb):reject(new Error('Eagle speaker verification SDK did not initialize.'));s.onerror=()=>reject(new Error('Eagle speaker verification SDK failed to load.'));document.head.appendChild(s)}).catch(e=>{voiceScriptP=null;throw e});
+ return voiceScriptP
+}
+function startVoiceAudio(stream){
+ if(voiceProcessor)return;
+ voiceStream=stream;voiceContext=new(window.AudioContext||window.webkitAudioContext)();voiceSource=voiceContext.createMediaStreamSource(stream);voiceProcessor=voiceContext.createScriptProcessor(4096,1,1);voiceMuted=voiceContext.createGain();voiceMuted.gain.value=0;
+ voiceProcessor.onaudioprocess=e=>{const input=e.inputBuffer.getChannelData(0),step=voiceContext.sampleRate/16000,out=[];for(let i=0;i<input.length;i+=step){const sample=Math.max(-1,Math.min(1,input[Math.floor(i)]||0));out.push(Math.round(sample*32767))}voiceRing.push(...out);if(voiceRing.length>64000)voiceRing.splice(0,voiceRing.length-64000);if(enrollmentActive){voicePending.push(...out);if(voicePending.length>96000)voicePending.splice(0,voicePending.length-96000)}};
+ voiceSource.connect(voiceProcessor);voiceProcessor.connect(voiceMuted);voiceMuted.connect(voiceContext.destination);if(voiceContext.state==='suspended')voiceContext.resume().catch(e=>console.error('Siri voice audio could not resume.',e))
+}
+function stopVoiceAudio(){
+ if(voiceProcessor){voiceProcessor.onaudioprocess=null;try{voiceProcessor.disconnect();voiceSource.disconnect();voiceMuted.disconnect()}catch(e){console.error('Siri microphone audio nodes could not be disconnected.',e)}}
+ if(voiceStream)voiceStream.getTracks().forEach(t=>t.stop());
+ voiceProcessor=voiceSource=voiceMuted=voiceStream=null;voiceRing=[];voicePending=[];
+ if(voiceContext){voiceContext.close().catch(e=>console.error('Siri microphone audio context could not close.',e));voiceContext=null}
+}
+async function ensureVoiceMonitoring(){
+ if(voiceEagle)return true;if(voiceStarting)return voiceStarting;
+ const key=voiceKey(),canMonitor=()=>S.wake&&micOk()&&!document.hidden&&gesture&&!denied;if(!key||!voiceProfile||!canMonitor())return false;
+ voiceStarting=(async()=>{let stream,engine;try{const EagleWeb=await loadEagle();if(!canMonitor())return false;stream=voiceStream||await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});if(!canMonitor()){if(stream!==voiceStream)stream.getTracks().forEach(t=>t.stop());return false}if(!voiceProcessor)startVoiceAudio(stream);if(voiceContext.state==='suspended')await voiceContext.resume();engine=await EagleWeb.Eagle.create(key,EAGLE_MODEL,{});if(!canMonitor()){engine.release();if(!enrollmentActive)stopVoiceAudio();return false}voiceEagle=engine;voiceStatus('Voice recognition is ready.');return true}catch(e){if(stream&&stream!==voiceStream)stream.getTracks().forEach(t=>t.stop());if(!enrollmentActive)stopVoiceAudio();console.error('Siri speaker verification could not start.',e);voiceStatus('Voice recognition could not start. Check the SDK key and microphone access.');return false}finally{voiceStarting=null}})();
+ return voiceStarting
+}
+async function verifyWakeVoice(){
+ if(!voiceEagle||!voiceProfile||!voiceRing.length)return false;
+ const pcm=voiceRing.slice(-32000),size=voiceEagle.minProcessSamples;let hits=0;
+ for(let i=0;i+size<=pcm.length;i+=size){const scores=await voiceEagle.process(Int16Array.from(pcm.slice(i,i+size)),{bytes:voiceProfile.bytes});if(scores&&scores[0]>=.65){if(++hits>=2)return true}else hits=0}
+ return false
+}
+function encodeVoiceProfile(bytes){let out='';for(let i=0;i<bytes.length;i+=0x8000)out+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(out)}
+async function enrollVoice(){
+ if(enrollmentActive)return;
+ const input=$('#sriVoiceKey'),key=(input&&input.value.trim())||voiceKey();
+ if(!key){voiceStatus('Add your Picovoice AccessKey here before voice setup.');return}
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){voiceStatus('Microphone access is not supported in this browser.');return}
+ let profiler=null,stream=null;enrollmentActive=true;voicePending=[];voiceStatus('Loading voice recognition. Please wait…');
+ try{
+  const EagleWeb=await loadEagle();stream=voiceStream||await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});if(!voiceProcessor)startVoiceAudio(stream);
+  if(voiceContext.state==='suspended')await voiceContext.resume();
+  profiler=await EagleWeb.EagleProfiler.create(key,EAGLE_MODEL,{});
+  const deadline=Date.now()+60000;let progress=0;
+  voiceStatus('Speak naturally and continuously until setup reaches 100%.');
+  while(progress<100&&Date.now()<deadline){
+   if(voicePending.length<profiler.frameLength){await new Promise(r=>setTimeout(r,40));continue}
+   const frame=Int16Array.from(voicePending.splice(0,profiler.frameLength));progress=await profiler.enroll(frame);voiceStatus('Setting up your voice… '+Math.floor(progress)+'%')
+  }
+  if(progress<100){progress=await profiler.flush()}
+  if(progress<100)throw new Error('Voice enrollment did not reach 100%. Try again in a quiet room while speaking continuously.');
+  voiceProfile=await profiler.export();localStorage.setItem(VOICE_PROFILE,JSON.stringify({data:encodeVoiceProfile(voiceProfile.bytes)}));localStorage.setItem(VOICE_KEY,key);
+  voiceStatus('Your voice is saved on this device. Siri will only open after your voice matches.');
+ }catch(e){console.error('Siri voice enrollment failed.',e);voiceStatus(e.message||'Voice setup failed. Check your AccessKey and try again.')}
+ finally{enrollmentActive=false;if(profiler)profiler.release();if(voiceStream===stream)voicePending=[];if(voiceProfile&&S.wake&&micOk()&&gesture&&!document.hidden){voiceEagle=null;await ensureVoiceMonitoring().catch(e=>console.error('Siri voice recognition setup failed.',e));ensureRec()}else if(!enrollmentActive)stopVoiceAudio()}
+}
+function removeVoiceProfile(){
+ if(!confirm('Remove your saved Siri voice profile from this device?'))return;
+ voiceProfile=null;if(voiceEagle)voiceEagle.release();voiceEagle=null;localStorage.removeItem(VOICE_PROFILE);voiceStatus('Voice profile removed. Set up your voice again to use wake words.');killRec();if(!enrollmentActive)stopVoiceAudio()
+}
 function killRec(){const r=rec;rec=null;if(r){r.onend=r.onresult=r.onerror=null;try{r.abort()}catch(_){}}}
-function ensureRec(){if(rec||!SR||!gesture||denied||speaking||document.hidden||mode!=='wake'||!S.wake||!micOk()){if(rec&&(!S.wake||!micOk())&&mode==='wake')killRec();return}startRec(false)}
+function ensureRec(){if(!SR||!S.wake||!micOk()||document.hidden){if(rec)killRec();if(voiceEagle){voiceEagle.release();voiceEagle=null}if(voiceProcessor&&!enrollmentActive)stopVoiceAudio();return}if(voiceProfile&&voiceKey()&&!voiceEagle&&gesture&&!denied&&!voiceStarting){ensureVoiceMonitoring().then(ready=>{if(ready)ensureRec()});return}if(rec||!gesture||denied||speaking||mode!=='wake'||!voiceProfile||!voiceEagle){if(rec&&(!voiceProfile||!voiceEagle)&&mode==='wake')killRec();return}startRec(false)}
 function startRec(single){if(!SR||rec||denied)return;const r=new SR();rec=r;r.lang=S.lang==='si'?'si-LK':'en-US';r.continuous=!single;r.interimResults=true;
  r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){const R=e.results[i];hear(R[0].transcript.trim(),R.isFinal,i)}};
  r.onerror=e=>{const er=e&&e.error;if(er==='network')rb=3000;if(er==='not-allowed'||er==='service-not-allowed'||er==='audio-capture'){denied=1;deniedAt=Date.now();micErr=er;if(act()){cap(t('Microphone is blocked — allow it, or type below.','මයික් අවසර නැහැ — අවසර දෙන්න, නැත්නම් type කරන්න.'));INP.focus()}}};
  r.onend=()=>{if(rec===r)rec=null;if(single){if(mode==='cmd'&&!busy&&!typed&&act()&&!CAP.dataset.heard)armSilence()}else{const live=Date.now()-lastStart;if(live<800)rb=Math.max(rb,1500);const d=rb;rb=200;setTimeout(ensureRec,d)}};
  lastStart=Date.now();try{r.start()}catch(_){rec=null}}
 /* ask for the microphone once (real browser permission prompt), then keep listening */
-async function askMic(){if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;
- try{const m=await navigator.mediaDevices.getUserMedia({audio:true});m.getTracks().forEach(x=>x.stop());denied=0;micErr='';gesture=1}
- catch(e){denied=1;deniedAt=Date.now();micErr=(e&&e.name)||'blocked'}
+async function askMic(){if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;let m=null;
+ try{m=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});denied=0;micErr='';gesture=1;if(voiceProfile&&voiceKey()){startVoiceAudio(m);await ensureVoiceMonitoring()}else m.getTracks().forEach(x=>x.stop())}
+ catch(e){if(m&&m!==voiceStream)m.getTracks().forEach(x=>x.stop());denied=1;deniedAt=Date.now();micErr=(e&&e.name)||'blocked'}
  ensureRec();try{if(document.getElementById('sxRoot')&&window.__sxNav)window.__sxNav.view(window.__sxNav.cur())}catch(_){}}
-const micStatus=()=>!SR?'Not supported':!window.isSecureContext?'Needs https':denied?'Blocked – tap to allow':(!S.wake||!micOk())?'Off':(rec?'Listening':'Starting…');
-function hear(tx,fin,i){if(busy||!tx)return;
- if(mode==='wake'){if(!WAKE.test(tx))return;mode='cmd';cmdIdx=i;CAP.dataset.heard='';openUI();armSilence()}
+const micStatus=()=>!SR?'Not supported':!window.isSecureContext?'Needs https':denied?'Blocked – tap to allow':(!S.wake||!micOk())?'Off':!voiceProfile?'Voice setup required':!voiceKey()?'SDK AccessKey required':(rec?'Listening for your voice':'Starting voice check…');
+async function hear(tx,fin,i){if(busy||!tx)return;
+ if(mode==='wake'){
+  if(!WAKE.test(tx))return;
+  if(voiceChecking)return;
+  voiceChecking=true;let accepted=false;try{accepted=await verifyWakeVoice()}catch(e){console.error('Siri wake-word voice verification failed.',e)}finally{voiceChecking=false}
+  if(!accepted||mode!=='wake'||!S.wake)return;
+  mode='cmd';cmdIdx=i;CAP.dataset.heard='';openUI();armSilence()
+ }
  if(mode==='cmd'&&i===cmdIdx){let q=tx;const m=WAKE.exec(tx);if(m)q=tx.slice(m.index+m[0].length);q=q.replace(/^[\s,.:;!?-]+/,'');
   if(q){CAP.dataset.heard='1';cap(q)}else cap(t('Listening…','අහගෙන ඉන්නවා…'));
   if(fin){if(q)run(q);else cmdIdx=i+1}}}
@@ -5611,7 +5684,7 @@ const wake1=()=>{gesture=1;if(denied&&Date.now()-deniedAt>5000)denied=0;if(!micA
 /* always-listening watchdog: restart whenever the browser silently stops the recogniser */
 setInterval(ensureRec,2500);addEventListener('focus',ensureRec);addEventListener('pageshow',ensureRec);
 try{if(navigator.permissions&&navigator.permissions.query)navigator.permissions.query({name:'microphone'}).then(p=>{const f=()=>{if(p.state==='granted'){denied=0;micErr='';micAsked=1;gesture=1;ensureRec()}else if(p.state==='denied'){denied=1;deniedAt=Date.now()}else if(!micAsked&&S.wake&&micOk()){micAsked=1;askMic()}};f();p.onchange=f}).catch(()=>{})}catch(_){}
-addEventListener('resize',layout);document.addEventListener('visibilitychange',()=>{if(document.hidden)killRec();else ensureRec()});
+addEventListener('resize',layout);document.addEventListener('visibilitychange',ensureRec);
 if(window.speechSynthesis)speechSynthesis.onvoiceschanged=()=>{};
 setInterval(sync,400);applyTheme();layout();sync();
 /* ---------- Settings app bridge ---------- */
@@ -5621,23 +5694,29 @@ const voices=()=>window.speechSynthesis?speechSynthesis.getVoices().filter(v=>/^
 window.__sxParent=v=>({touch:'acc',at:'touch'}[v]||(v==='loc'||v==='bt'?'pv':'main'));
 const siriHTML=()=>`<div class="sxT1">Siri & Search</div><div class="sxCard"><div class="sriO mini"><i class="a"></i><i class="b"></i><i class="c"></i></div><b>Siri</b><p>Say “Hey Siri”, “Hi Siri”, “Hello Siri” or just “Siri”, then ask anything — or choose Siri from the AssistiveTouch menu. Siri can open any app in 3A Mission, tell the time, weather, your exam countdown and more.</p></div>
  <div class="sxG">${rw('Listen for “Hey Siri”','wake')}${rw('Voice Feedback','voice')}${rw('Activation Sound','chime')}</div>
- <div class="sxF">“Hey Siri” needs microphone access and keeps listening while this page is open. Turn off Microphone in Privacy & Security to stop it.</div><div class="sxG"><div class="sxR" data-sr="mic"><em>Microphone</em><span class="sxV">${micStatus()}</span><span class="ch">›</span></div></div>
+ <div class="sxF">Wake words open Siri only after the on-device speaker check matches your saved voice. Your voice profile stays in this browser on this device.</div>
+ <div class="sxG"><div class="sxR"><input id="sriVoiceKey" type="password" placeholder="Picovoice AccessKey" value="${voiceKey().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}" autocomplete="off"></div></div>
+ <div class="sxF">Get an AccessKey from <a href="https://console.picovoice.ai/" target="_blank" rel="noopener">Picovoice Console</a>. Enter it here; do not send it in chat or add it to project code. Speaker matching and your voice profile stay on this device; speech-to-text may use your browser's speech service.</div>
+ <div class="sxG"><button class="sxB" data-sr="voice-enroll">Set Up My Voice</button><button class="sxB red" data-sr="voice-remove" ${voiceProfile?'':'disabled'}>Remove Voice Profile</button></div><div class="sxF" id="sriVoiceStatus">${voiceProfile?'Saved voice profile is on this device.':'Set up your voice before enabling wake-word listening.'}</div>
+ <div class="sxF">Microphone · ${micStatus()}</div>
  <div class="sxG">${rw('Search on Home Screen','pill')}</div>
  <div class="sxG">${cy('Language','lang',S.lang==='si'?'සිංහල':'English')}${cy('Siri Voice','vname',S.vname||'Default')}${cy('Speaking Rate','rate',S.rate+'×')}${cy('Orb Style','theme',TH[S.theme][0])}</div>
  <div class="sxF">SMART ANSWERS (OPTIONAL)</div><div class="sxG"><div class="sxR"><input id="sriKey" type="password" placeholder="Anthropic API key" value="${S.key.replace(/"/g,'')}" autocomplete="off"></div></div>
  <div class="sxF">Add a key so Siri can answer any question. It stays on this device.</div><button class="sxB" data-sr="test">Try Siri</button>`;
-window.__siriTest=q=>handle(q);window.__siri={open:activate,status:()=>S.wake?(denied?'Mic Blocked':(rec?'Listening':'Hey Siri On')):'Off',atStatus:()=>'',
+window.__siriTest=q=>handle(q);window.__siri={open:activate,status:()=>!S.wake?'Off':!voiceProfile?'Voice setup required':!voiceKey()?'SDK AccessKey required':denied?'Mic Blocked':(rec?'Listening for your voice':'Starting voice check…'),atStatus:()=>'',
  settingsHTML:v=>{
   if(v==='acc')return`<div class="sxT1">Accessibility</div><div class="sxF" style="margin-top:0">PHYSICAL AND MOTOR</div><div class="sxG"><div class="sxR" data-go="touch"><em>Touch</em><span class="ch">›</span></div></div>`;
   if(v==='touch')return`<div class="sxT1">Touch</div><div class="sxG"><div class="sxR" data-go="at"><em>AssistiveTouch</em><span class="sxV">${AT.on?'On':'Off'}</span><span class="ch">›</span></div></div><div class="sxF">AssistiveTouch is a floating button that gives you quick access to Home, Siri, Control Center and more.</div>`;
   if(v==='at')return`<div class="sxT1">AssistiveTouch</div><div class="sxG"><div class="sxR"><em>AssistiveTouch</em>${tgl('at_on',AT.on)}</div></div><div class="sxF">AssistiveTouch allows you to use your iPhone if you have difficulty touching the screen or if you require an adaptive accessory.</div>`+
    (AT.on?`<div class="sxF">CUSTOM ACTIONS</div><div class="sxG">${cy('Single-Tap','at_tap',AX[AT.tap])}${cy('Double-Tap','at_dbl',AX[AT.dbl])}${cy('Long Press','at_long',AX[AT.long])}</div><div class="sxF">Custom actions allow you to interact directly with the AssistiveTouch icon without opening the menu.</div><div class="sxG">${cy('Idle Opacity','at_idle',Math.round(AT.idle*100)+'%')}</div><div class="sxF">Drag the button anywhere — it snaps to the nearest edge.</div>`:'');
   return siriHTML()}};
-document.addEventListener('change',e=>{const r=$('#sxRoot');if(!r||!r.contains(e.target))return;const k=e.target.dataset&&e.target.dataset.k;
+document.addEventListener('change',e=>{const r=$('#sxRoot');if(!r||!r.contains(e.target))return;if(e.target.id==='sriVoiceKey'){const key=e.target.value.trim();if(key)localStorage.setItem(VOICE_KEY,key);else localStorage.removeItem(VOICE_KEY);if(voiceEagle){voiceEagle.release();voiceEagle=null}if(key&&voiceProfile)ensureVoiceMonitoring().then(ensureRec);else killRec();return}const k=e.target.dataset&&e.target.dataset.k;
  if(k==='at_on'){AT.on=e.target.checked?1:0;saveAT();sync();atLayout();atWake();window.__sxNav&&window.__sxNav.view('at');return}
- if(k&&k.startsWith('sr_')){S[k.slice(3)]=e.target.checked?1:0;save();sync();if(k==='sr_wake'){if(S.wake)ensureRec();else killRec()}}
+ if(k&&k.startsWith('sr_')){S[k.slice(3)]=e.target.checked?1:0;save();sync();if(k==='sr_wake'){if(S.wake)ensureRec();else{killRec();if(voiceEagle)voiceEagle.release();voiceEagle=null;stopVoiceAudio()}}}
  if(e.target.id==='sriKey'){S.key=e.target.value.trim();save()}});
 document.addEventListener('click',e=>{const r=$('#sxRoot'),b=e.target.closest&&e.target.closest('[data-sr]');if(!r||!b||!r.contains(b))return;const k=b.dataset.sr,y=r.scrollTop,cur=window.__sxNav?window.__sxNav.cur():'siri';
+ if(k==='voice-enroll'){const key=$('#sriVoiceKey')?.value.trim();if(!key){voiceStatus('Enter your Picovoice AccessKey first.');return}localStorage.setItem(VOICE_KEY,key);enrollVoice();return}
+ if(k==='voice-remove'){removeVoiceProfile();if(window.__sxNav)window.__sxNav.view(cur);return}
  if(k==='test'){gesture=1;activate();return}
  if(k==='lang'){S.lang=S.lang==='si'?'en':'si';S.vname='';killRec();setTimeout(ensureRec,300)}
  if(k==='vname'){const L=[''].concat(voices().filter(v=>v.lang.toLowerCase().startsWith(S.lang)).map(v=>v.name));S.vname=L[(L.indexOf(S.vname)+1)%L.length]}
@@ -9243,13 +9322,14 @@ body.shop-frame-blue #challenge .cs-stat{border-color:rgba(10,132,255,.45)!impor
   busy=true;
   authorize(m[1],()=>{busy=false;bypass=el;el.click();bypass=null},()=>{busy=false});
  },true);
- /* API key editing */
+ /* API keys are only exposed after a Face ID match; passcode is not a fallback. */
  document.addEventListener('focusin',e=>{
-  const t=e.target;if(!t||t.id!=='sriKey'||keyOK||busy||!window.__secAsk)return;
-  t.blur();busy=true;
-  window.__secAsk('API Key',()=>{busy=false;keyOK=true;const n=document.getElementById('sriKey')||t;n.focus()},()=>{busy=false});
+  const t=e.target;if(!t||(t.id!=='sriKey'&&t.id!=='sriVoiceKey')||keyOK||busy)return;
+  busy=true;t.blur();
+  if(!window.__hasFaceID||!window.__hasFaceID()||!window.__faceOnlyAsk){busy=false;alert('Set up Face ID before accessing Siri API keys. A passcode cannot be used for this action.');return}
+  window.__faceOnlyAsk('Siri API Key',()=>{busy=false;keyOK=true;const n=document.getElementById(t.id)||t;n.focus()},()=>{busy=false});
  },true);
- document.addEventListener('focusout',e=>{if(e.target&&e.target.id==='sriKey'&&!busy)keyOK=false},true);
+ document.addEventListener('focusout',e=>{if(e.target&&(e.target.id==='sriKey'||e.target.id==='sriVoiceKey')&&!busy)keyOK=false},true);
 })();
 </script>
 
