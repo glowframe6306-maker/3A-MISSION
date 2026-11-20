@@ -5329,7 +5329,7 @@ function armSilence(){clearTimeout(tmr);tmr=setTimeout(()=>{if(mode==='cmd'&&!bu
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,denied=0,gesture=0,deniedAt=0,rb=200,micErr='',micAsked=0,lastStart=0;
 const WAKE=/(?:\b(?:hey|hi|hello|hai|hay|ok|okay|yo)[\s,]+)?(?:\b(?:s[iye]r{1,2}[iye]{1,2}|sirius|[cz][iy]r[iy]e?)(?:'s)?\b|සිරි)/i;
 const micOk=()=>{try{return(JSON.parse(localStorage.getItem('m3a_pv'))||{}).mic!==0}catch(_){return true}};
-const VOICE_PROFILE='m3a_siri_speaker_profile',SPEAKER_MODEL='onnx-community/wespeaker-voxceleb-resnet34-LM',SPEAKER_REV='6a61a1833ff2583aabeba044f5c8221f00b67ceb',SPEAKER_MATCH_LIMIT=.72;
+const VOICE_PROFILE='m3a_siri_speaker_profile',SPEAKER_MODEL='onnx-community/wespeaker-voxceleb-resnet34-LM',SPEAKER_REV='6a61a1833ff2583aabeba044f5c8221f00b67ceb',SPEAKER_MATCH_LIMIT=.60;
 let voiceProfile=null,voiceEngine=null,voiceScriptP=null,voiceStarting=null,voiceStream=null,voiceContext=null,voiceProcessor=null,voiceMuted=null,voiceSource=null,voiceRing=[],voicePending=[],voiceChecking=false,enrollmentActive=false;
 try{const p=JSON.parse(localStorage.getItem(VOICE_PROFILE)||'null');if(p&&Array.isArray(p.vector)&&p.vector.length>=128&&p.vector.every(Number.isFinite))voiceProfile={vector:Float32Array.from(p.vector)};else if(p)localStorage.removeItem(VOICE_PROFILE)}catch(e){console.error('Saved Siri voice profile could not be loaded.',e)}
 try{localStorage.removeItem('m3a_siri_eagle_key');localStorage.removeItem('m3a_siri_eagle_profile')}catch(e){console.warn('Old Picovoice settings could not be cleared from this browser.',e)}
@@ -5360,8 +5360,11 @@ async function ensureVoiceMonitoring(){
 }
 async function verifyWakeVoice(){
  if(!voiceEngine||!voiceProfile||voiceRing.length<24000)return false;
- const pcm=voiceRing.slice(-48000);if(pcm.reduce((sum,x)=>sum+x*x,0)/pcm.length<90000)return false;
- const vector=await speakerEmbedding(pcm);return cosineSimilarity(voiceProfile.vector,vector)>=SPEAKER_MATCH_LIMIT
+ const pcm=voiceRing.slice(-48000),energy=pcm.reduce((sum,x)=>sum+x*x,0)/pcm.length;
+ if(energy<30000){voiceStatus('Wake word heard, but the microphone signal was too quiet.');return false}
+ const vector=await speakerEmbedding(pcm),score=cosineSimilarity(voiceProfile.vector,vector);
+ voiceStatus(score>=SPEAKER_MATCH_LIMIT?'Your voice matched.':`Wake word heard; voice score ${score.toFixed(2)} was below ${SPEAKER_MATCH_LIMIT.toFixed(2)}. Re-enroll in a quiet room if this is your voice.`);
+ return score>=SPEAKER_MATCH_LIMIT
 }
 function normalizeEmbedding(data){let norm=0;for(const x of data)norm+=x*x;norm=Math.sqrt(norm);if(!Number.isFinite(norm)||norm===0)throw new Error('The speaker model returned an invalid voice embedding.');return Float32Array.from(data,x=>x/norm)}
 function cosineSimilarity(a,b){if(!a||!b||a.length!==b.length)return-1;let score=0;for(let i=0;i<a.length;i++)score+=a[i]*b[i];return score}
