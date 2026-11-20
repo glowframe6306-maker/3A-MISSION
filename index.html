@@ -4111,6 +4111,7 @@ const home=$('#iphoneHomeScreen');
 home.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.hs-app[data-home-page]');if(!b)return;const id=b.dataset.homePage;if(!need(id))return;e.stopImmediatePropagation();e.preventDefault();ask((nm[id]||{}).n||id,useOf(id),()=>{OK.add(id);b.click()})},true);
 const g0=window.go;window.go=function(id){const cur=(document.querySelector('.page.active')||{}).id;if(cur==='notes'&&id!=='notes')OK.delete('notes');
  if(typeof id==='string'&&need(id)){ask((nm[id]||{}).n||id,useOf(id),()=>{OK.add(id);window.go(id)},()=>window.showIphoneHomeScreen&&window.showIphoneHomeScreen());return}
+ if(id==='whatsapp'){if(window.__openWhatsApp)window.__openWhatsApp();else console.error('WhatsApp link is unavailable.');return}
  const r=g0.apply(this,arguments);document.body.classList.toggle('fs-app',id==='settings'||id==='camera'||id==='photos'||id==='whatsapp'||id==='miai'||id==='chatgpt'||id==='maps'||id==='ict');
  if(id==='notes'&&OK.has('notes')&&typeof notesPin!=='undefined'&&!notesUnlocked){window.__notesOK=1;unlockNotes()}
  if(id==='settings')view('main');return r};
@@ -4442,7 +4443,7 @@ view('main');
  const URLS={chatgpt:'https://chatgpt.com/',whatsapp:'https://web.whatsapp.com/',miai:'https://mi-ai-assistant-of-mi.vercel.app',maps:'https://www.google.com/maps',ict:'https://esisulka.lk'};
  const $=id=>document.getElementById(id);
  try{pageNames.whatsapp='WhatsApp';pageNames.miai='MI AI';pageNames.chatgpt='ChatGPT';pageNames.maps='Maps';pageNames.ict='ICT';}catch(_){}
- const cfg={chatgpt:{host:'cgHost',splash:'cgSplash',title:'ChatGPT'},whatsapp:{host:'waHost',splash:'waSplash',title:'WhatsApp'},miai:{host:'miHost',splash:'miSplash',title:'MI AI'},maps:{host:'mpHost',splash:'mpSplash',title:'Maps'},ict:{host:'icHost',splash:'icSplash',title:'ICT'}};
+ const cfg={chatgpt:{host:'cgHost',splash:'cgSplash',title:'ChatGPT'},miai:{host:'miHost',splash:'miSplash',title:'MI AI'},maps:{host:'mpHost',splash:'mpSplash',title:'Maps'},ict:{host:'icHost',splash:'icSplash',title:'ICT'}};
  const frames={};
  /* both apps are embedded full screen inside the phone; created on first open, then kept alive */
  function ensure(id){
@@ -4457,6 +4458,7 @@ view('main');
  const mo=new MutationObserver(sync);
  Object.keys(cfg).forEach(id=>{const p=$(id);if(p)mo.observe(p,{attributes:true,attributeFilter:['class']});});
  sync();
+ window.__openWhatsApp=()=>window.top.location.assign(URLS.whatsapp);
 })();
 </script>
 <style id="hs-page2-css">
