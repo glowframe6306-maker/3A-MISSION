@@ -4036,7 +4036,7 @@ let warmP;const warm=()=>warmP||(warmP=(async()=>{try{await lib();const c=docume
 async function scan(){
  const v=document.createElement('video');v.style.cssText='position:fixed;left:0;top:0;width:64px;height:64px;opacity:.01;pointer-events:none';document.body.appendChild(v);
  let st,ok=0,hit=0;
- try{await warm();st=await cam(v);const T0=Date.now();
+ try{const cameraReady=cam(v).then(stream=>(st=stream));await Promise.all([cameraReady,warm()]);const T0=Date.now();
   while(Date.now()-T0<12000){
    if(v.readyState<2||!v.videoWidth){await wait(100);continue}
    const frame=captureFrame(v),found=await findFace(frame);
@@ -4095,7 +4095,7 @@ function enroll(){
  const v=$('video',o),hi=$('.hi',o),pc=$('.pc',o),dirEl=$('.sxDir',o),dots=$$('.sxDots i',o);let st,dead=0,got=0;const S=[];
  const close=()=>{dead=1;stop(st);o.remove();view(cur)};$('.cn',o).onclick=close;
  const prog=()=>{const lit=Math.round(got/TOTAL*N);$$('line',o).forEach((l,i)=>l.classList.toggle('on',i<lit));pc.textContent=Math.round(got/TOTAL*100)+'%'};
- (async()=>{try{await warm();st=await cam(v)}catch(e){console.error('Face ID setup failed',e);hi.textContent='Face ID could not start. Check camera access and your internet connection.';return}
+ (async()=>{try{const cameraReady=cam(v).then(stream=>(st=stream));await Promise.all([cameraReady,warm()]);if(dead){stop(st);return}}catch(e){console.error('Face ID setup failed',e);hi.textContent='Face ID could not start. Check camera access and your internet connection.';return}
   for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si];let n=0,last=0;dirEl.textContent='●';
    while(!dead&&n<s.n){if(v.readyState<2||!v.videoWidth){await wait(100);continue}
     const frame=captureFrame(v);let found,r;
