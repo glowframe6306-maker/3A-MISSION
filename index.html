@@ -4039,14 +4039,18 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 /* warm-up: load models + compile the GPU shaders in the background so the real scan is quick */
 let warmP;const warm=()=>warmP||(warmP=(async()=>{try{await lib();const c=document.createElement('canvas');c.width=c.height=320;const g=c.getContext('2d');g.fillStyle='#808080';g.fillRect(0,0,320,320);await faceapi.detectSingleFace(c,detOpts(224));await faceapi.computeFaceDescriptor(c);await faceapi.detectFaceLandmarksTiny(c)}catch(e){console.warn('Face ID warm-up failed; first scan may be slower.',e);warmP=null}})());
 async function scan(onMismatch){
- const deadline=Date.now()+2000,timeout={};
+ const startupTimeoutMs=10000,timeout={};
+ let deadline=0;
  const withinBudget=promise=>Promise.race([promise,wait(Math.max(0,deadline-Date.now())).then(()=>timeout)]);
  const v=document.createElement('video');v.style.cssText='position:fixed;left:0;top:0;width:64px;height:64px;opacity:.01;pointer-events:none';document.body.appendChild(v);
 let st,ok=0,hit=0,mismatchHits=0,mismatch=false,finished=false;
 try{
  const cameraReady=cam(v,stream=>{if(finished)return false;st=stream;return true});
- const startup=await withinBudget(Promise.all([cameraReady,warm()]));
- if(startup!==timeout)while(Date.now()<deadline){
+ const startup=await Promise.race([Promise.all([cameraReady,warm()]),wait(startupTimeoutMs).then(()=>timeout)]);
+ if(startup===timeout){console.error('Face ID camera/model startup timed out.');return 0}
+ await wait(150);
+ deadline=Date.now()+2000;
+ while(Date.now()<deadline){
   if(v.readyState<2||!v.videoWidth){const left=deadline-Date.now();if(left>0)await wait(Math.min(50,left));continue}
   const frame=captureFrame(v),found=await withinBudget(findFace(frame));
   if(found===timeout)break;
