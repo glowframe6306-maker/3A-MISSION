@@ -4000,10 +4000,10 @@ const enrolled=()=>F.d.length>=6,usable=k=>enrolled()&&(k==='secure'||!!F.use[k]
 const TK='<svg class="sxTick" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><path d="M20 33l8 8 16-17"/></svg>';
 const GL='<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22v-8a6 6 0 0 1 6-6h8M42 8h8a6 6 0 0 1 6 6v8M56 42v8a6 6 0 0 1-6 6h-8M22 56h-8a6 6 0 0 1-6-6v-8"/><path d="M24 26v4M40 26v4M32 28v8h-3M24 44q8 6 16 0"/></svg>';
 /* ---------- face engine (face-api.js, runs fully in the browser) ---------- */
-let libP;const lib=()=>libP||(libP=new Promise((res,rej)=>{const s=document.createElement('script');s.src=BASE+'dist/face-api.js';s.onload=async()=>{try{let ready=false;try{ready=await faceapi.tf.setBackend('webgl')}catch(e){console.warn('Face ID WebGL backend unavailable; trying CPU.',e)}if(!ready)ready=await faceapi.tf.setBackend('cpu');if(!ready)throw new Error('No supported TensorFlow.js backend is available.');await faceapi.tf.ready();const u=BASE+'model';await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(u),faceapi.nets.faceLandmark68TinyNet.loadFromUri(u),faceapi.nets.faceRecognitionNet.loadFromUri(u)]);res()}catch(e){rej(e)}};s.onerror=rej;document.head.appendChild(s)}).catch(e=>{libP=null;throw e}));
+let libP;const lib=()=>libP||(libP=new Promise((res,rej)=>{const s=document.createElement('script');s.src=BASE+'dist/face-api.js';s.onload=async()=>{try{const ready=await faceapi.tf.setBackend('cpu');if(!ready)throw new Error('TensorFlow.js CPU backend is unavailable.');await faceapi.tf.ready();const u=BASE+'model';await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(u),faceapi.nets.faceLandmark68TinyNet.loadFromUri(u),faceapi.nets.faceRecognitionNet.loadFromUri(u)]);res()}catch(e){rej(e)}};s.onerror=rej;document.head.appendChild(s)}).catch(e=>{libP=null;throw e}));
 const cam=async v=>{const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:480},height:{ideal:480}},audio:false});v.srcObject=st;v.muted=true;v.setAttribute('playsinline','');await v.play();return st};
 const stop=st=>st&&st.getTracks().forEach(t=>t.stop());
-const det=v=>faceapi.detectSingleFace(v,new faceapi.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.25})).withFaceLandmarks(true).withFaceDescriptor();
+const det=v=>faceapi.detectSingleFace(v,new faceapi.TinyFaceDetectorOptions({inputSize:128,scoreThreshold:.15}));
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 /* warm-up: load models + compile the GPU shaders in the background so the real scan is quick */
 let warmed=0;async function warm(){if(warmed)return;warmed=1;try{await lib();const c=document.createElement('canvas');c.width=c.height=160;const g=c.getContext('2d');g.fillStyle='#808080';g.fillRect(0,0,160,160);await faceapi.detectSingleFace(c,new faceapi.TinyFaceDetectorOptions({inputSize:160,scoreThreshold:.5})).catch(()=>{});await faceapi.computeFaceDescriptor(c).catch(()=>{});await faceapi.detectFaceLandmarksTiny(c).catch(()=>{})}catch(e){warmed=0}}
@@ -4073,7 +4073,8 @@ function enroll(){
  const faceSize=r=>r.detection.box.width/(v.videoWidth||1);
  (async()=>{try{await lib();st=await cam(v)}catch(e){console.error('Face ID setup failed',e);hi.textContent='Face ID could not start. Check camera access and your internet connection.';return}
   for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si];let n=0,last=0;dirEl.textContent='●';hi.textContent=s.t;
-   while(!dead&&n<s.n){hi.textContent='Finding your face…';const r=await det(v).catch(()=>null);
+   while(!dead&&n<s.n){hi.textContent='Finding your face…';const found=await det(v).catch(e=>{console.error('Face detection failed',e);return null});
+     const r=found?await found.withFaceLandmarks(true).withFaceDescriptor().catch(e=>{console.error('Face sample failed',e);return null}):null;
     if(!r){hi.textContent='I can’t see your face. Add light and face the camera.';await wait(100);continue}
     const ratio=faceSize(r);
     if(ratio<.24){hi.textContent='Move closer';await wait(60);continue}
