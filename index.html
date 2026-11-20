@@ -4013,25 +4013,24 @@ const faceMatches=descriptor=>{const ds=F.d.map(x=>faceapi.euclideanDistance(x,d
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 /* warm-up: load models + compile the GPU shaders in the background so the real scan is quick */
 let warmP;const warm=()=>warmP||(warmP=(async()=>{try{await lib();const c=document.createElement('canvas');c.width=c.height=320;const g=c.getContext('2d');g.fillStyle='#808080';g.fillRect(0,0,320,320);await faceapi.detectSingleFace(c,detOpts(224));await faceapi.computeFaceDescriptor(c);await faceapi.detectFaceLandmarksTiny(c)}catch(e){console.warn('Face ID warm-up failed; first scan may be slower.',e);warmP=null}})());
-async function scan(hint){hint=hint||(()=>{});
+async function scan(){
  const v=document.createElement('video');v.style.cssText='position:fixed;left:0;top:0;width:64px;height:64px;opacity:.01;pointer-events:none';document.body.appendChild(v);
  let st,ok=0,hit=0;
  try{await warm();st=await cam(v);const T0=Date.now();
   while(Date.now()-T0<12000){
-   if(v.readyState<2||!v.videoWidth){hint('Starting camera…');await wait(100);continue}
+   if(v.readyState<2||!v.videoWidth){await wait(100);continue}
    const frame=captureFrame(v),found=await findFace(frame);
-   if(!found){hint('Look at iPhone');hit=0;await wait(50);continue}
+   if(!found){hit=0;await wait(50);continue}
    let r;
-   if(F.v===2){r=await zoomedSample(frame,found,()=>hint('Zooming in to check face…'))}
+   if(F.v===2){r=await zoomedSample(frame,found)}
    else{
     r=await det(frame);
-    if(!r||!faceMatches(r.descriptor))r=await zoomedSample(frame,found,()=>hint('Zooming in to check face…'));
+    if(!r||!faceMatches(r.descriptor))r=await zoomedSample(frame,found);
    }
-   if(!r){hint('Scanning…');hit=0;continue}
-   hint('Scanning…');
+   if(!r){hit=0;continue}
    if(faceMatches(r.descriptor)){if(++hit>=2){ok=1;break}}else hit=0;
-  }}catch(e){console.error('Face ID unlock scan failed',e);hint('Face scan failed. Use your passcode.')}finally{stop(st);v.remove()}
- hint('');if(ok){fails=0;return 1}fails++;return 0}
+  }}catch(e){console.error('Face ID unlock scan failed',e)}finally{stop(st);v.remove()}
+ if(ok){fails=0;return 1}fails++;return 0}
 /* ---------- Face ID / passcode prompt for apps, notes, hidden apps ---------- */
 function ask(name,use,done,no){
  const nt=use==='notes',len=nt?7:6;let dead=0;if(window.__passOff()){done&&done();return}
@@ -4040,7 +4039,7 @@ function ask(name,use,done,no){
  const pad=()=>{api.showPad();api.retry(usable(use)?face:null)};
  const face=async()=>{
   if(!usable(use)){if(fails>=3)api.sub('Face ID is off. Enter your passcode.');pad();return}
-  api.showFace(name,'Look at iPhone');const r=await scan(t=>{if(!dead&&!api.dead)api.st(t)});if(dead||api.dead)return;
+  api.showFace(name,'');const r=await scan();if(dead||api.dead)return;
   if(r){api.faceOk();setTimeout(()=>{if(!dead&&!api.dead){dead=1;api.close();done&&done()}},FaceIDAnim.OK_MS+60)}
   else{api.faceFail(fails>=3?'Face ID is off. Enter your passcode.':'Face ID not recognised. Try again or use passcode.');setTimeout(()=>{if(!dead&&!api.dead)pad()},FaceIDAnim.FAIL_MS+40)}};
  face()}
@@ -4054,7 +4053,7 @@ document.addEventListener('click',e=>{const r=document.getElementById('sxRoot');
 const lockBtn=()=>{let b=$('#sxRL');if(!b){const c=$('#passcodeContent');if(!c)return null;b=E('<button class="sxRL" id="sxRL" type="button" hidden>Retry Face ID</button>');c.appendChild(b);b.onclick=()=>{b.hidden=true;if(window.__lockFace)window.__lockFace()}}return b};
 const sync=()=>{const b=lockBtn();if(b)b.hidden=!usable('unlock')};
 if(enrolled())setTimeout(warm,700);
-window.sxFace={sync,canUse:()=>usable('unlock'),reset:()=>{fails=0},lockScan(okf,pad){if(!usable('unlock'))return false;scan(t=>{const e=document.querySelector('#faceIdIntro .faceid-status');if(e)e.textContent=t}).then(r=>{if(r)okf();else{pad();sync()}});return true}};
+window.sxFace={sync,canUse:()=>usable('unlock'),reset:()=>{fails=0},lockScan(okf,pad){if(!usable('unlock'))return false;scan().then(r=>{if(r)okf();else{pad();sync()}});return true}};
 /* ---------- guard: App Lock + Notes ---------- */
 const nm={};$$('#hsStage .hs-app[data-home-page]').forEach(b=>{if(!nm[b.dataset.homePage])nm[b.dataset.homePage]={n:b.getAttribute('aria-label'),s:b.querySelector('svg')}});
 const need=id=>!OK.has(id)&&((AL.on&&AL.apps[id])||(id==='notes'&&typeof notesUnlocked!=='undefined'&&!notesUnlocked));
@@ -4070,18 +4069,18 @@ if(typeof pageNames!=='undefined')pageNames.settings='Settings';
 const sh0=window.showIphoneHomeScreen;window.showIphoneHomeScreen=function(){OK.clear();return sh0.apply(this,arguments)};
 /* ---------- Face ID enrollment (quick scan to 100%) ---------- */
 function enroll(){
- const STEPS=[{t:'Hold still and look at iPhone',n:6}];
+ const STEPS=[{n:6}];
  const TOTAL=STEPS.reduce((x,y)=>x+y.n,0),N=60;let ln='';for(let i=0;i<N;i++){const a=i/N*2*Math.PI-Math.PI/2,c=Math.cos(a),s=Math.sin(a);ln+=`<line data-i="${i}" x1="${125+c*108}" y1="${125+s*108}" x2="${125+c*121}" y2="${125+s*121}"/>`}
- const o=E(`<div class="sxE"><h2>Face ID</h2><div class="sxDir" data-d="c">●</div><div class="sxCam"><video></video><svg viewBox="0 0 250 250">${ln}</svg></div><div class="pc">0%</div><p class="hi">Loading Face ID… (internet needed once)</p><div class="sxDots">${STEPS.map(()=>'<i></i>').join('')}</div><button class="cn">Cancel</button></div>`);document.body.appendChild(o);
+ const o=E(`<div class="sxE"><h2>Face ID</h2><div class="sxDir" data-d="c">●</div><div class="sxCam"><video></video><svg viewBox="0 0 250 250">${ln}</svg></div><div class="pc">0%</div><p class="hi"></p><div class="sxDots">${STEPS.map(()=>'<i></i>').join('')}</div><button class="cn">Cancel</button></div>`);document.body.appendChild(o);
  const v=$('video',o),hi=$('.hi',o),pc=$('.pc',o),dirEl=$('.sxDir',o),dots=$$('.sxDots i',o);let st,dead=0,got=0;const S=[];
  const close=()=>{dead=1;stop(st);o.remove();view(cur)};$('.cn',o).onclick=close;
  const prog=()=>{const lit=Math.round(got/TOTAL*N);$$('line',o).forEach((l,i)=>l.classList.toggle('on',i<lit));pc.textContent=Math.round(got/TOTAL*100)+'%'};
- (async()=>{try{hi.textContent='Preparing Face ID…';await warm();st=await cam(v)}catch(e){console.error('Face ID setup failed',e);hi.textContent='Face ID could not start. Check camera access and your internet connection.';return}
-  for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si];let n=0,last=0;dirEl.textContent='●';hi.textContent=s.t;
-   while(!dead&&n<s.n){if(v.readyState<2||!v.videoWidth){hi.textContent='Starting camera…';await wait(100);continue}
-    hi.textContent='Finding your face…';const frame=captureFrame(v);let found,r;
-    try{found=await findFace(frame);if(found)r=await zoomedSample(frame,found,()=>{hi.textContent='Zooming in to check face…'})}catch(e){console.error('Face sample failed',e);hi.textContent='Face scan error. Keep still and try again.';await wait(300);continue}
-    if(!r){hi.textContent='Could not record this frame. Keep still and try again.';await wait(100);continue}
+ (async()=>{try{await warm();st=await cam(v)}catch(e){console.error('Face ID setup failed',e);hi.textContent='Face ID could not start. Check camera access and your internet connection.';return}
+  for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si];let n=0,last=0;dirEl.textContent='●';
+   while(!dead&&n<s.n){if(v.readyState<2||!v.videoWidth){await wait(100);continue}
+    const frame=captureFrame(v);let found,r;
+    try{found=await findFace(frame);if(found)r=await zoomedSample(frame,found)}catch(e){console.error('Face sample failed',e);hi.textContent='Face scan error. Please try again.';await wait(300);continue}
+    if(!r){hi.textContent='';await wait(100);continue}
     if(Date.now()-last<130)continue;
     try{S.push(Array.from(r.descriptor).map(x=>+x.toFixed(4)))}catch(e){console.error('Face ID sample failed',e);stop(st);hi.textContent='Could not record this face. Reload and try again.';return}
     last=Date.now();n++;got++;prog();hi.textContent=`Recording face… ${n}/${s.n}`;
@@ -4209,8 +4208,8 @@ view('main');
    retry(fn){rt.hidden=!fn;rt.onclick=fn?()=>{if(!dead)fn();}:null;},
    close};
   cur=api;requestAnimationFrame(()=>el.classList.add('show'));
-  if(o.faceFake){api.showFace('Face ID','Look at iPhone');ft=setTimeout(()=>{if(!dead)api.showPad();},o.faceFake);}
-  else if(o.faceName)api.showFace(o.faceName,'Look at iPhone');
+  if(o.faceFake){api.showFace('Face ID','');ft=setTimeout(()=>{if(!dead)api.showPad();},o.faceFake);}
+  else if(o.faceName)api.showFace(o.faceName,'');
   else setMode('pad');
   return api;
  }
