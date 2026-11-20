@@ -4075,11 +4075,28 @@ function ask(name,use,done,no){
   if(r){api.faceOk();setTimeout(()=>{if(!dead&&!api.dead){dead=1;api.close();done&&done()}},FaceIDAnim.OK_MS+60)}
   else{api.faceFail(fails>=3?'Face ID is off. Enter your passcode.':'Face ID not recognised. Try again or use passcode.');setTimeout(()=>{if(!dead&&!api.dead)pad()},FaceIDAnim.FAIL_MS+40)}};
  face()}
+function requireFaceMatch(done,no){
+ if(!enrolled()){no&&no();return}
+ let dead=false,running=false;
+ const api=window.__pc.open({len:6,title:'Face ID Required',subtitle:'Verify your face to continue',faceName:'Face ID',check:()=>false,onCancel:()=>{dead=true;no&&no()}});
+ const attempt=async()=>{
+  if(dead||api.dead||running)return;
+  running=true;api.showFace('Face ID','');
+  const matched=await scan();
+  running=false;
+  if(dead||api.dead)return;
+  if(matched){dead=true;api.faceOk();setTimeout(()=>{if(!api.dead){api.close();done&&done()}},FaceIDAnim.OK_MS+60)}
+  else{api.faceFail('Face ID not recognized. Try again.');api.retry(attempt)}
+ };
+ api.retry(attempt);attempt();
+}
 window.__authAsk=(n,cb)=>ask(n,'hidden',cb);window.__secAsk=(n,cb,no)=>ask(n,'secure',cb,no);
+window.__faceOnlyAsk=(n,cb,no)=>requireFaceMatch(cb,no);
+window.__hasFaceID=()=>enrolled();
 const pcNew=(sub,onSet)=>{let first=null;window.__pc.open({len:6,title:'Enter your new passcode',subtitle:sub,check:c=>{first=c;return true},onOk:()=>{window.__pc.open({len:6,title:'Re-enter your new passcode',subtitle:'Enter it once more to confirm',check:c=>c===first,onOk:()=>onSet(first)})}})};
 document.addEventListener('click',e=>{const r=document.getElementById('sxRoot');if(!r||!r.contains(e.target))return;const id=e.target.id;
  if(id==='sxPcChg')ask('Change Passcode','secure',()=>pcNew('Choose a new 6-digit passcode',p=>{window.__setPass(p);fails=0;view('fid')}));
- else if(id==='sxPcOff')ask('Turn Passcode Off','secure',()=>{if(confirm('Turn Passcode Off? Face ID will be removed and locks will stop asking for a passcode.')){F.d=[];SV('m3a_face',F);window.__setPass('off');view('fid')}});
+ else if(id==='sxPcOff'){const turnOff=()=>{if(confirm('Turn Passcode Off? Face ID will be removed and locks will stop asking for a passcode.')){F.d=[];SV('m3a_face',F);window.__setPass('off');view('fid')}};if(enrolled())requireFaceMatch(turnOff);else ask('Turn Passcode Off','secure',turnOff);}
  else if(id==='sxPcOn')pcNew('Choose a 6-digit passcode',p=>{window.__setPass(p);view('fid')});});
 /* lock-screen hooks */
 const lockBtn=()=>{let b=$('#sxRL');if(!b){const c=$('#passcodeContent');if(!c)return null;b=E('<button class="sxRL" id="sxRL" type="button" hidden>Retry Face ID</button>');c.appendChild(b);b.onclick=()=>{b.hidden=true;if(window.__lockFace)window.__lockFace()}}return b};
@@ -9192,9 +9209,12 @@ body.shop-frame-blue #challenge .cs-stat{border-color:rgba(10,132,255,.45)!impor
   const el=m[0];
   if(bypass===el){bypass=null;return}
   e.preventDefault();e.stopImmediatePropagation();
-  if(busy||!window.__secAsk)return;
+  const faceOnly=(el.id==='sxSet'||el.id==='sxDel')&&window.__hasFaceID&&window.__hasFaceID();
+  const authorize=faceOnly?window.__faceOnlyAsk:window.__secAsk;
+  if(faceOnly&&!authorize){console.error('Face ID-only authorization is unavailable.');return}
+  if(busy||!authorize)return;
   busy=true;
-  window.__secAsk(m[1],()=>{busy=false;bypass=el;el.click();bypass=null},()=>{busy=false});
+  authorize(m[1],()=>{busy=false;bypass=el;el.click();bypass=null},()=>{busy=false});
  },true);
  /* API key editing */
  document.addEventListener('focusin',e=>{
