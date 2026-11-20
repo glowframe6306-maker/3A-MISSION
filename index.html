@@ -5340,7 +5340,7 @@ async function enrollVoice(){
  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){voiceStatus('Microphone access is not supported in this browser.');return}
  let stream=null;enrollmentActive=true;killRec();voicePending=[];voiceStatus('Loading the local speaker model. No API key is needed.');
  try{
-  await loadSpeakerModel();stream=voiceStream||await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});if(!voiceProcessor)startVoiceAudio(stream);
+  await loadSpeakerModel();stream=voiceStream||await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});gesture=1;denied=0;micErr='';if(!voiceProcessor)startVoiceAudio(stream);
   if(voiceContext.state==='suspended')await voiceContext.resume();
   const deadline=Date.now()+60000,vectors=[],frameLength=48000;
   voiceStatus('Speak naturally for about 10 seconds. Audio is checked on this device only.');
@@ -5718,7 +5718,7 @@ document.addEventListener('change',e=>{const r=$('#sxRoot');if(!r||!r.contains(e
  if(k&&k.startsWith('sr_')){S[k.slice(3)]=e.target.checked?1:0;save();sync();if(k==='sr_wake'){if(S.wake)ensureRec();else{killRec();stopVoiceAudio()}}}
  if(e.target.id==='sriKey'){S.key=e.target.value.trim();save()}});
 document.addEventListener('click',e=>{const r=$('#sxRoot'),b=e.target.closest&&e.target.closest('[data-sr]');if(!r||!b||!r.contains(b))return;const k=b.dataset.sr,y=r.scrollTop,cur=window.__sxNav?window.__sxNav.cur():'siri';
- if(k==='voice-enroll'){enrollVoice();return}
+ if(k==='voice-enroll'){gesture=1;enrollVoice();return}
  if(k==='voice-remove'){removeVoiceProfile();if(window.__sxNav)window.__sxNav.view(cur);return}
  if(k==='test'){gesture=1;activate();return}
  if(k==='lang'){S.lang=S.lang==='si'?'en':'si';S.vname='';killRec();setTimeout(ensureRec,300)}
