@@ -2374,7 +2374,7 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  window.addEventListener('storage',()=>{if(!notificationsExpanded)renderLockNotifications();});
  window.addEventListener('pagehide',()=>{clearInterval(clockTimer);clearInterval(notificationTimer);},{once:true});
 
- let startY=null,activePointer=null,code='',panelOpen=false,unlocked=false,faceAuthenticated=false,backgroundFaceScan=null,swipeRequested=false;
+ let startY=null,activePointer=null,code='',panelOpen=false,unlocked=false,faceAuthenticated=false,backgroundFaceScan=null,backgroundFaceScanStarted=false,backgroundFaceScanStartAttempts=0,swipeRequested=false;
  const faceIdIntro=document.getElementById('faceIdIntro');
  const passcodeContent=document.getElementById('passcodeContent');
  const keypadEl=document.getElementById('lockKeypad');
@@ -2397,11 +2397,18 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
   );
  }
  function startBackgroundFaceScan(){
-  if(backgroundFaceScan||faceAuthenticated||panelOpen||unlocked||(window.__passOff&&window.__passOff())||!window.sxFace?.canUse?.())return;
+  if(backgroundFaceScanStarted||backgroundFaceScan||faceAuthenticated||panelOpen||unlocked||!screen.isConnected||(window.__passOff&&window.__passOff()))return;
+  if(!window.sxFace){
+   if(backgroundFaceScanStartAttempts++<30)window.setTimeout(startBackgroundFaceScan,100);
+   else console.error('Face ID is unavailable for the lock-screen scan');
+   return;
+  }
+  if(!window.sxFace.canUse?.())return;
+  backgroundFaceScanStarted=true;
   backgroundFaceScan=window.sxFace.quickScan();
   backgroundFaceScan.then(ok=>{
    backgroundFaceScan=null;
-   if(ok)faceAuthenticated=true;
+   if(ok){faceAuthenticated=true;screen.classList.add('lock-opened');}
    if(swipeRequested&&panelOpen&&!unlocked){if(ok)unlock();else{swipeRequested=false;runFace();}}
   }).catch(e=>{backgroundFaceScan=null;console.error('Lock-screen Face ID scan failed',e);if(swipeRequested&&panelOpen&&!unlocked){swipeRequested=false;runFace();}});
  }
@@ -2431,7 +2438,7 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  (function(){const img=screen.querySelector('.lock-wallpaper');if(img&&!img.complete)img.addEventListener('load',placeIsland);window.addEventListener('resize',placeIsland);requestAnimationFrame(placeIsland);window.setTimeout(placeIsland,150);window.setTimeout(placeIsland,600);})();
  function renderDots(){dots.forEach((dot,i)=>dot.classList.toggle('filled',i<code.length));}
  function clearCode(){code='';renderDots();}
- function unlock(){if(unlocked)return;unlocked=true;clearFaceTimers();screen.classList.add('lock-opened');screen.classList.add('lock-hide');unlockNow();}
+ function unlock(){if(unlocked)return;unlocked=true;clearFaceTimers();screen.classList.add('lock-opened');window.setTimeout(()=>{if(!screen.isConnected)return;screen.classList.add('lock-hide');unlockNow();},330);}
  function unlockNow(){panel.classList.remove('show');const hasHome=typeof showIphoneHomeScreen==='function';
   if(hasHome){showIphoneHomeScreen();if(window.__hsUnlockAnim)window.__hsUnlockAnim();}
   else{const app=document.querySelector('.app');if(app){app.classList.remove('unlock-arrive');app.classList.add('unlock-prep');void app.offsetWidth;app.classList.remove('unlock-prep');void app.offsetWidth;app.classList.add('unlock-arrive');window.setTimeout(()=>app.classList.remove('unlock-arrive'),275);}}
@@ -2525,6 +2532,7 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  });
 
  document.addEventListener('keydown',e=>{if(!panelOpen||unlocked)return;if(/^\d$/.test(e.key)){e.preventDefault();enterDigit(e.key);}else if(e.key==='Backspace'){e.preventDefault();backspace();}});
+ window.addEventListener('pageshow',startBackgroundFaceScan);
  window.setTimeout(startBackgroundFaceScan,300);
  document.body.style.overflow='hidden';
 })();
