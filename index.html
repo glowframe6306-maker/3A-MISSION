@@ -2374,7 +2374,7 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  window.addEventListener('storage',()=>{if(!notificationsExpanded)renderLockNotifications();});
  window.addEventListener('pagehide',()=>{clearInterval(clockTimer);clearInterval(notificationTimer);},{once:true});
 
- let startY=null,activePointer=null,code='',panelOpen=false,unlocked=false;
+ let startY=null,activePointer=null,code='',panelOpen=false,unlocked=false,faceAuthenticated=false,backgroundFaceScan=null,swipeRequested=false;
  const faceIdIntro=document.getElementById('faceIdIntro');
  const passcodeContent=document.getElementById('passcodeContent');
  const keypadEl=document.getElementById('lockKeypad');
@@ -2396,12 +2396,23 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
    ()=>later(()=>{screen.classList.add('faceid-fail');FIDL.fail();faceTimers.push(window.setTimeout(()=>{if(live())showPadNow();},FIDL.FAIL_MS+40));})
   );
  }
+ function startBackgroundFaceScan(){
+  if(backgroundFaceScan||faceAuthenticated||panelOpen||unlocked||(window.__passOff&&window.__passOff())||!window.sxFace?.canUse?.())return;
+  backgroundFaceScan=window.sxFace.quickScan();
+  backgroundFaceScan.then(ok=>{
+   backgroundFaceScan=null;
+   if(ok)faceAuthenticated=true;
+   if(swipeRequested&&panelOpen&&!unlocked){if(ok)unlock();else{swipeRequested=false;runFace();}}
+  }).catch(e=>{backgroundFaceScan=null;console.error('Lock-screen Face ID scan failed',e);if(swipeRequested&&panelOpen&&!unlocked){swipeRequested=false;runFace();}});
+ }
  function openKeypad(){if(panelOpen||unlocked)return;if(window.__passOff&&window.__passOff()){unlock();return}panelOpen=true;clearFaceTimers();
   screen.classList.remove('faceid-fail','faceid-done','faceid-active','lock-opened');screen.classList.add('keypad-open');panel.classList.add('show');
   window.__lockOk=()=>unlock();window.__lockFace=()=>{if(panelOpen&&!unlocked)runFace();};
+  if(faceAuthenticated){unlock();return}
+  if(backgroundFaceScan){swipeRequested=true;screen.classList.add('faceid-active');FIDL.scan();return}
   if(window.sxFace){window.sxFace.sync();if(window.sxFace.canUse&&window.sxFace.canUse()){runFace();return;}}
   showPadNow();}
- function closeKeypad(){if(!panelOpen||unlocked)return;panelOpen=false;faceRun++;clearFaceTimers();FIDL.idle();screen.classList.remove('keypad-open','faceid-active','faceid-done','faceid-fail','lock-opened');panel.classList.remove('show');keypadEl.classList.remove('ready');clearCode();error.textContent='';}
+ function closeKeypad(){if(!panelOpen||unlocked)return;panelOpen=false;swipeRequested=false;faceRun++;clearFaceTimers();FIDL.idle();screen.classList.remove('keypad-open','faceid-active','faceid-done','faceid-fail','lock-opened');panel.classList.remove('show');keypadEl.classList.remove('ready');clearCode();error.textContent='';}
  (function(){const kb=document.getElementById('keypadBar');if(!kb)return;let y0=null,pid=null;
   kb.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;y0=e.clientY;pid=e.pointerId;try{kb.setPointerCapture(pid);}catch(_){}e.preventDefault();});
   kb.addEventListener('pointerup',e=>{if(y0===null||e.pointerId!==pid)return;const d=y0-e.clientY;y0=null;pid=null;if(d>=24)closeKeypad();e.preventDefault();});
@@ -2514,6 +2525,7 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  });
 
  document.addEventListener('keydown',e=>{if(!panelOpen||unlocked)return;if(/^\d$/.test(e.key)){e.preventDefault();enterDigit(e.key);}else if(e.key==='Backspace'){e.preventDefault();backspace();}});
+ window.setTimeout(startBackgroundFaceScan,300);
  document.body.style.overflow='hidden';
 })();
 </script>
@@ -4053,7 +4065,7 @@ document.addEventListener('click',e=>{const r=document.getElementById('sxRoot');
 const lockBtn=()=>{let b=$('#sxRL');if(!b){const c=$('#passcodeContent');if(!c)return null;b=E('<button class="sxRL" id="sxRL" type="button" hidden>Retry Face ID</button>');c.appendChild(b);b.onclick=()=>{b.hidden=true;if(window.__lockFace)window.__lockFace()}}return b};
 const sync=()=>{const b=lockBtn();if(b)b.hidden=!usable('unlock')};
 if(enrolled())setTimeout(warm,700);
-window.sxFace={sync,canUse:()=>usable('unlock'),reset:()=>{fails=0},lockScan(okf,pad){if(!usable('unlock'))return false;scan().then(r=>{if(r)okf();else{pad();sync()}});return true}};
+window.sxFace={sync,canUse:()=>usable('unlock'),reset:()=>{fails=0},quickScan:()=>scan(),lockScan(okf,pad){if(!usable('unlock'))return false;scan().then(r=>{if(r)okf();else{pad();sync()}});return true}};
 /* ---------- guard: App Lock + Notes ---------- */
 const nm={};$$('#hsStage .hs-app[data-home-page]').forEach(b=>{if(!nm[b.dataset.homePage])nm[b.dataset.homePage]={n:b.getAttribute('aria-label'),s:b.querySelector('svg')}});
 const need=id=>!OK.has(id)&&((AL.on&&AL.apps[id])||(id==='notes'&&typeof notesUnlocked!=='undefined'&&!notesUnlocked));
