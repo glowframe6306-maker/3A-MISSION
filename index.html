@@ -951,10 +951,11 @@ body.fs-app main{margin:0;width:100%;max-width:none;padding:0}
 @keyframes fidxScanPulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.045)}}
 @keyframes fidxScanLine{from{top:12%;opacity:.5}to{top:86%;opacity:1}}
 /* SUCCESS: glyph fades -> round rings spin -> rings fade -> circle + tick draws */
-.fidx.is-ok .fidx-glyph{opacity:1;animation:fidxGlyphOut .22s ease forwards!important}
-.fidx.is-ok .fidx-orbit{opacity:1;animation:fidxOrbIn .25s ease both,fidxOrbOut .3s .7s ease forwards!important}
-.fidx.is-ok .fidx-ok{animation:fidxOkIn .3s .7s ease both,fidxTick .4s 1.3s ease!important}
-.fidx.is-ok .fidx-ok path{animation:fidxDraw .45s .9s cubic-bezier(.4,.1,.3,1) forwards!important}
+.fidx.is-ok .fidx-glyph{opacity:1;animation:fidxGlyphOut .16s ease forwards!important}
+.fidx.is-ok .fidx-orbit{opacity:1;animation:fidxOrbIn .18s ease both,fidxOrbOut .2s .45s ease forwards!important}
+.fidx.is-ok .fidx-ok{animation:fidxOkIn .18s .45s ease both,fidxTick .28s .72s ease!important}
+.fidx.is-ok .fidx-ok circle,.fidx.is-ok .fidx-ok path{stroke:#30d158;filter:drop-shadow(0 0 3px rgba(48,209,88,.78))}
+.fidx.is-ok .fidx-ok path{animation:fidxDraw .3s .54s cubic-bezier(.4,.1,.3,1) forwards!important}
 /* FAIL: just the head-shake, no rings */
 .fidx.is-fail .fidx-orbit{animation:none!important;opacity:0!important}
 </style>
@@ -967,7 +968,7 @@ body.fs-app main{margin:0;width:100%;max-width:none;padding:0}
  '<svg class="fidx-sq" viewBox="0 0 100 100" aria-hidden="true"><rect x="8" y="8" width="84" height="84" rx="27"/></svg>'+
  '<div class="fidx-orbit" aria-hidden="true"><svg class="fidx-ring b" viewBox="0 0 100 100"><circle cx="50" cy="50" r="37"/></svg><svg class="fidx-ring a" viewBox="0 0 100 100"><circle cx="50" cy="50" r="38"/></svg><svg class="fidx-ring c" viewBox="0 0 100 100"><circle cx="50" cy="50" r="38"/></svg></div>'+
  '<svg class="fidx-ok" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40"/><path pathLength="100" d="M29 52l15 14 27-31"/></svg></div>';
- const OK_MS=1800,FAIL_MS=760;
+ const OK_MS=1050,FAIL_MS=760;
  function mount(host){
   if(!host)return {idle(){},scan(){},ok(cb){cb&&setTimeout(cb,OK_MS)},fail(cb){cb&&setTimeout(cb,FAIL_MS)},OK_MS,FAIL_MS};
   host.innerHTML=MARK;const w=host.firstElementChild;let tm=0;
