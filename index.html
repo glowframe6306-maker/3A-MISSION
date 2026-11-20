@@ -3049,7 +3049,7 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  const DEF={grid:[],dock:[]};apps.forEach(el=>{if(el.dataset.folder)return;(el.dataset.id.charAt(0)==='d'?DEF.dock:DEF.grid).push(el.dataset.id);});
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
  const put=(el,x,y,dk)=>{el.style.left='calc(var(--u)*'+x+')';el.style.top='calc(var(--u)*'+y+')';el.classList.toggle('indock',dk);};
- const PW=852, PC0=GT.length*4, PC=GT2.length*4, isVis=id=>{const b=byId[id];return !!b&&b.style.display!=='none';},
+ const PW=852, PC0=GT.length*4, PC=GT2.length*4, isVis=id=>{const b=byId[id];return !!b&&getComputedStyle(b).display!=='none';},
  posG=i=>{if(i<PC0)return [GL[i%4],GT[Math.floor(i/4)]];const j=i-PC0,pg=1+Math.floor(j/PC),k=j%PC;return [GL[k%4]+PW*pg,GT2[Math.floor(k/4)]];},
  slotAt=(pgn,cx,cy)=>{const col=clamp(Math.round((cx-126-pgn*PW)/200.7),0,3);if(pgn<1)return clamp(Math.round((cy-75-GT[0])/227),0,GT.length-1)*4+col;return PC0+(pgn-1)*PC+clamp(Math.round((cy-75-GT2[0])/227),0,GT2.length-1)*4+col;},
  insAt=(arr,id,v)=>{const vs=arr.filter(isVis);if(v>=vs.length){arr.push(id);return;}arr.splice(arr.indexOf(vs[v]),0,id);},
@@ -3057,7 +3057,8 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  const layout=(skip,g,d)=>{g=g||grid;d=d||dock;
   const vg=g.filter(id=>id===skip||isVis(id));
   vg.forEach((id,i)=>{if(id!==skip){const q=posG(i);put(byId[id],q[0],q[1],false);}});
-  d.forEach((id,i)=>{if(id!==skip){const q=posD(i);put(byId[id],q[0],q[1],true);}});
+  const vd=d.filter(id=>id===skip||isVis(id));
+  vd.forEach((id,i)=>{if(id!==skip){const q=posD(i);put(byId[id],q[0],q[1],true);}});
   window.__hsPages=Math.max(1,vg.length>PC0?1+Math.ceil((vg.length-PC0)/PC):1);window.__hsRefresh&&window.__hsRefresh();};
  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({grid:grid,dock:dock}));}catch(e){}};
  const resetAll=()=>{if(window.__hsFolder&&window.__hsFolder.clearAll)window.__hsFolder.clearAll();grid=DEF.grid.slice();dock=DEF.dock.slice();layout();save();};
