@@ -4040,7 +4040,7 @@ async function scan(onMismatch){
  const deadline=Date.now()+2000,timeout={};
  const withinBudget=promise=>Promise.race([promise,wait(Math.max(0,deadline-Date.now())).then(()=>timeout)]);
  const v=document.createElement('video');v.style.cssText='position:fixed;left:0;top:0;width:64px;height:64px;opacity:.01;pointer-events:none';document.body.appendChild(v);
-let st,ok=0,hit=0,mismatch=false,finished=false;
+let st,ok=0,hit=0,mismatchHits=0,mismatch=false,finished=false;
 try{
  const cameraReady=cam(v,stream=>{if(finished)return false;st=stream;return true});
  const startup=await withinBudget(Promise.all([cameraReady,warm()]));
@@ -4048,7 +4048,7 @@ try{
   if(v.readyState<2||!v.videoWidth){const left=deadline-Date.now();if(left>0)await wait(Math.min(50,left));continue}
   const frame=captureFrame(v),found=await withinBudget(findFace(frame));
   if(found===timeout)break;
-  if(!found){hit=0;const left=deadline-Date.now();if(left>0)await wait(Math.min(25,left));continue}
+  if(!found){hit=0;mismatchHits=0;const left=deadline-Date.now();if(left>0)await wait(Math.min(25,left));continue}
   let r;
   if(F.v===2)r=await withinBudget(zoomedSample(frame,found));
   else{
@@ -4057,9 +4057,9 @@ try{
    if(!r||!faceMatches(r.descriptor))r=await withinBudget(zoomedSample(frame,found));
   }
   if(r===timeout)break;
-  if(!r){hit=0;const left=deadline-Date.now();if(left>0)await wait(Math.min(25,left));continue}
-  if(faceMatches(r.descriptor)){if(++hit>=2){ok=1;break}}
-  else{mismatch=true;if(onMismatch)onMismatch();break}
+  if(!r){hit=0;mismatchHits=0;const left=deadline-Date.now();if(left>0)await wait(Math.min(25,left));continue}
+  if(faceMatches(r.descriptor)){mismatchHits=0;if(++hit>=2){ok=1;break}}
+  else{hit=0;if(++mismatchHits>=2){mismatch=true;if(onMismatch)onMismatch();break}}
  }
 }catch(e){console.error('Face ID unlock scan failed',e)}finally{finished=true;stop(st);v.remove()}
 if(ok){fails=0;return 1}if(mismatch)fails++;return 0}
@@ -4101,7 +4101,7 @@ document.addEventListener('click',e=>{const r=document.getElementById('sxRoot');
 /* lock-screen hooks */
 const lockBtn=()=>{let b=$('#sxRL');if(!b){const c=$('#passcodeContent');if(!c)return null;b=E('<button class="sxRL" id="sxRL" type="button" hidden>Retry Face ID</button>');c.appendChild(b);b.onclick=()=>{b.hidden=true;if(window.__lockFace)window.__lockFace()}}return b};
 const sync=()=>{const b=lockBtn();if(b)b.hidden=!usable('unlock')};
-if(enrolled())setTimeout(warm,700);
+if(enrolled())warm();
 window.sxFace={sync,canUse:()=>usable('unlock'),reset:()=>{fails=0},quickScan:()=>scan(),lockScan(okf,pad,onMismatch){if(!usable('unlock'))return false;scan(onMismatch).then(r=>{if(r)okf();else{pad();sync()}});return true}};
 /* ---------- guard: App Lock + Notes ---------- */
 const nm={};$$('#hsStage .hs-app[data-home-page]').forEach(b=>{if(!nm[b.dataset.homePage])nm[b.dataset.homePage]={n:b.getAttribute('aria-label'),s:b.querySelector('svg')}});
