@@ -2386,13 +2386,13 @@ dailyThought();updateDailyCountdownMessage();renderTasks();renderTodoHistory();r
  let faceRun=0;
  function showPadNow(){faceRun++;screen.classList.remove('faceid-active','faceid-fail');screen.classList.add('faceid-done');keypadEl.classList.remove('ready');void keypadEl.offsetWidth;keypadEl.classList.add('ready');if(window.sxFace)window.sxFace.sync();}
  function runFace(){
-  const run=++faceRun,t0=Date.now(),live=()=>run===faceRun&&panelOpen&&!unlocked;
+  const run=++faceRun,live=()=>run===faceRun&&panelOpen&&!unlocked;
   clearFaceTimers();
   faceStatus.textContent='';
   screen.classList.remove('faceid-fail','faceid-done','lock-opened');screen.classList.add('faceid-active');keypadEl.classList.remove('ready');
   const rb=document.getElementById('sxRL');if(rb)rb.hidden=true;
   FIDL.scan();
-  const later=fn=>faceTimers.push(window.setTimeout(()=>{if(live())fn();},Math.max(0,850-(Date.now()-t0))));
+  const later=fn=>{if(live())fn()};
   window.sxFace.lockScan(
    ()=>later(()=>{screen.classList.add('lock-opened');FIDL.ok();if(live())unlock();}),
    ()=>later(()=>{screen.classList.add('faceid-fail');FIDL.fail();faceTimers.push(window.setTimeout(()=>{if(live())showPadNow();},FIDL.FAIL_MS+40));}),
