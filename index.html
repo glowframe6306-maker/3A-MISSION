@@ -13,6 +13,19 @@
 })();
 </script>
 
+<script id="face-id-reset-link">
+(()=>{
+ const resetUrl=new URL(location.href);
+ if(resetUrl.searchParams.get('resetFaceId')!=='1')return;
+ try{
+  localStorage.removeItem('m3a_face');
+  resetUrl.searchParams.delete('resetFaceId');
+  history.replaceState(null,'',resetUrl.href);
+  console.info('Face ID profile removed from this browser.');
+ }catch(e){console.error('Face ID profile could not be reset.',e)}
+})();
+</script>
+
 <script id="phone-frame-shell">
 /* On wide screens (laptop/PC) show the whole app inside a phone-sized column, the same size as the lock screen. */
 (()=>{try{
