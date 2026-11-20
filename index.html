@@ -4003,7 +4003,9 @@ const GL='<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="3" st
 let libP;const lib=()=>libP||(libP=new Promise((res,rej)=>{const s=document.createElement('script');s.src=BASE+'dist/face-api.js';s.onload=async()=>{try{const ready=await faceapi.tf.setBackend('cpu');if(!ready)throw new Error('TensorFlow.js CPU backend is unavailable.');await faceapi.tf.ready();const u=BASE+'model';await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(u),faceapi.nets.faceLandmark68TinyNet.loadFromUri(u),faceapi.nets.faceRecognitionNet.loadFromUri(u)]);res()}catch(e){rej(e)}};s.onerror=rej;document.head.appendChild(s)}).catch(e=>{libP=null;throw e}));
 const cam=async v=>{const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:480},height:{ideal:480}},audio:false});v.srcObject=st;v.muted=true;v.setAttribute('playsinline','');await v.play();return st};
 const stop=st=>st&&st.getTracks().forEach(t=>t.stop());
-const det=v=>faceapi.detectSingleFace(v,new faceapi.TinyFaceDetectorOptions({inputSize:160,scoreThreshold:.05})).withFaceLandmarks(true).withFaceDescriptor();
+const detOpts=()=>new faceapi.TinyFaceDetectorOptions({inputSize:160,scoreThreshold:.05});
+const det=v=>faceapi.detectSingleFace(v,detOpts()).withFaceLandmarks(true).withFaceDescriptor();
+const captureFrame=v=>{const c=document.createElement('canvas'),scale=Math.min(1,320/(v.videoWidth||320));c.width=Math.max(1,Math.round((v.videoWidth||320)*scale));c.height=Math.max(1,Math.round((v.videoHeight||240)*scale));c.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,c.width,c.height);return c};
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 /* warm-up: load models + compile the GPU shaders in the background so the real scan is quick */
 let warmed=0;async function warm(){if(warmed)return;warmed=1;try{await lib();const c=document.createElement('canvas');c.width=c.height=160;const g=c.getContext('2d');g.fillStyle='#808080';g.fillRect(0,0,160,160);await faceapi.detectSingleFace(c,new faceapi.TinyFaceDetectorOptions({inputSize:160,scoreThreshold:.5})).catch(()=>{});await faceapi.computeFaceDescriptor(c).catch(()=>{});await faceapi.detectFaceLandmarksTiny(c).catch(()=>{})}catch(e){warmed=0}}
@@ -4012,19 +4014,18 @@ const RANGE=()=>F.sz?[F.sz*.68,F.sz*1.5]:[.24,.72];
 async function scan(hint){hint=hint||(()=>{});
  const v=document.createElement('video');v.style.cssText='position:fixed;left:0;top:0;width:64px;height:64px;opacity:.01;pointer-events:none';document.body.appendChild(v);
  let st,ok=0,miss=0,hit=0;
- try{await lib();st=await cam(v);const T0=Date.now(),lo=RANGE()[0],hi=RANGE()[1],o=new faceapi.TinyFaceDetectorOptions({inputSize:160,scoreThreshold:.5});
-  while(Date.now()-T0<4500){
-   const d=await faceapi.detectSingleFace(v,o).catch(()=>null);
-   if(!d){hint('Look at iPhone');hit=0;await wait(0);continue}
-   const ratio=d.box.width/(v.videoWidth||1);
+ try{await lib();st=await cam(v);const T0=Date.now(),lo=RANGE()[0],hi=RANGE()[1];
+  while(Date.now()-T0<12000){
+   if(v.readyState<2||!v.videoWidth){hint('Starting camera…');await wait(100);continue}
+   const frame=captureFrame(v),r=await det(frame);
+   if(!r){hint('Look at iPhone');hit=0;await wait(50);continue}
+   const ratio=r.detection.box.width/frame.width;
    if(ratio<lo){hint('Move closer');hit=0;await wait(0);continue}
    if(ratio>hi){hint('Move farther away');hit=0;await wait(0);continue}
    hint('Scanning…');
-   const r=await faceapi.detectSingleFace(v,o).withFaceLandmarks(true).withFaceDescriptor().catch(()=>null);
-   if(!r)continue;
    const ds=F.d.map(x=>faceapi.euclideanDistance(x,r.descriptor)).sort((a,b)=>a-b),sc=(ds[0]+ds[1]+ds[2])/3;
-   if(sc<.46){if(++hit>=2){ok=1;break}}else{hit=0;if(++miss>=3)break}
-  }}catch(e){}finally{stop(st);v.remove()}
+   if(sc<.6){if(++hit>=2){ok=1;break}}else{hit=0;if(++miss>=3)break}
+  }}catch(e){console.error('Face ID unlock scan failed',e);hint('Face scan failed. Use your passcode.')}finally{stop(st);v.remove()}
  hint('');if(ok){fails=0;return 1}fails++;return 0}
 /* ---------- Face ID / passcode prompt for apps, notes, hidden apps ---------- */
 function ask(name,use,done,no){
@@ -4070,12 +4071,11 @@ function enroll(){
  const v=$('video',o),hi=$('.hi',o),pc=$('.pc',o),dirEl=$('.sxDir',o),dots=$$('.sxDots i',o);let st,dead=0,got=0;const S=[],SZ=[];
  const close=()=>{dead=1;stop(st);o.remove();view(cur)};$('.cn',o).onclick=close;
  const prog=()=>{const lit=Math.round(got/TOTAL*N);$$('line',o).forEach((l,i)=>l.classList.toggle('on',i<lit));pc.textContent=Math.round(got/TOTAL*100)+'%'};
- const captureFrame=()=>{const c=document.createElement('canvas'),scale=Math.min(1,320/(v.videoWidth||320));c.width=Math.max(1,Math.round((v.videoWidth||320)*scale));c.height=Math.max(1,Math.round((v.videoHeight||240)*scale));c.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,c.width,c.height);return c};
  const faceSize=(r,c)=>r.detection.box.width/c.width;
  (async()=>{try{await lib();st=await cam(v)}catch(e){console.error('Face ID setup failed',e);hi.textContent='Face ID could not start. Check camera access and your internet connection.';return}
   for(let si=0;si<STEPS.length&&!dead;si++){const s=STEPS[si];let n=0,last=0;dirEl.textContent='●';hi.textContent=s.t;
    while(!dead&&n<s.n){if(v.readyState<2||!v.videoWidth){hi.textContent='Starting camera…';await wait(100);continue}
-    hi.textContent='Finding your face…';const frame=captureFrame();let r;
+    hi.textContent='Finding your face…';const frame=captureFrame(v);let r;
     try{r=await det(frame)}catch(e){console.error('Face sample failed',e);hi.textContent='Face scan error. Keep still and try again.';await wait(300);continue}
     if(!r){hi.textContent='Could not record this frame. Keep still and try again.';await wait(100);continue}
     const ratio=faceSize(r,frame);
